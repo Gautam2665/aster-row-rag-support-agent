@@ -57,9 +57,22 @@
 
 ---
 
-## 6. Questions & Topics to Revisit on Day 2
+## 7. Day 2 Personal Learning Journal & Technical Evolution
 
-* How to integrate the LLM (Gemini / OpenAI) with retrieved context.
-* System prompt design for strict grounding, citations, and safe abstention.
-* Function calling / tool use for mock order lookups (`orders.json`).
-* Multi-source conflict handling (e.g. tumbler dishwasher care conflict).
+### Key Day 2 Concepts Learned
+1. **Data-Instruction Separation**: Encapsulating retrieved knowledge chunks in `<retrieved_evidence>` XML tags and instructing the model to treat XML text purely as passive data neutralizes prompt injection attacks.
+2. **Dependency Inversion Principle**: Coupling application logic to `BaseLLMProvider` interface rather than direct `OpenAI()` calls enables zero-cost offline unit testing via `MockLLMProvider`.
+3. **Tool Boundary Security Firewall**: Tool outputs are injected into LLM context. `OrderLookupTool` must sanitize data into `CustomerSafeOrderResult`, purging PII (`email`, `address`) and malicious warehouse notes (`ORD-1005`) before data reaches the model.
+4. **Stale Field Scrubbing**: Cancelled orders (`ORD-1004`) in raw databases often retain stale carrier ETAs. The tool firewall scrubs `estimated_delivery` to `None`.
+5. **Bounded Agent State Machine**: Bounding agent loop iterations (`max_iterations=3`) prevents infinite execution loops. Intent classification bypasses tool execution when order IDs are missing.
+6. **Honest Evaluation Tagging**: 15/15 visible evaluation cases pass 100% of deterministic state assertions (tools, privacy, lineage, handoff). Semantic text generation assertions are tagged `UNVERIFIED_REQUIRES_LLM` under MockLLMProvider rather than fake-passing.
+
+---
+
+## 8. What I Implemented in Day 2
+* [`src/prompt_builder.py`](file:///c:/Users/HP/OneDrive/Desktop/ai-intern-test/ai-agent-intern-test/src/prompt_builder.py): Grounded response prompt builder with XML delimitation.
+* [`src/llm.py`](file:///c:/Users/HP/OneDrive/Desktop/ai-intern-test/ai-agent-intern-test/src/llm.py): `BaseLLMProvider`, `MockLLMProvider`, `OpenAILLMProvider`, and `GroundedResponse` pipeline.
+* [`src/tools/order_lookup.py`](file:///c:/Users/HP/OneDrive/Desktop/ai-intern-test/ai-agent-intern-test/src/tools/order_lookup.py): `OrderLookupTool` security firewall & `CustomerSafeOrderResult`.
+* [`src/agent.py`](file:///c:/Users/HP/OneDrive/Desktop/ai-intern-test/ai-agent-intern-test/src/agent.py): `SupportAgent` bounded state machine & intent classifier.
+* [`src/evaluation.py`](file:///c:/Users/HP/OneDrive/Desktop/ai-intern-test/ai-agent-intern-test/src/evaluation.py): `EvaluationRunner` & visible evaluation cases analyzer.
+* **43 Unit Tests** across 8 test suites passing cleanly in `pytest`.
