@@ -1,0 +1,19 @@
+# Environment variables & secrets
+.env
+*.env
+
+# Python bytecode & cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Pytest / Coverage
+.pytest_cache/
+.coverage
+
+# Virtual Environment
+venv/
+.venv/
+
+# Brain / Antigravity artifacts
+.gemini/
