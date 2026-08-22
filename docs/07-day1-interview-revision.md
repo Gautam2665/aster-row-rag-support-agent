@@ -32,3 +32,8 @@ If retrieval fetches wrong/insufficient context, or if the system prompt fails t
 
 ### 8. Why Not LangChain or LlamaIndex?
 Frameworks like LangChain introduce heavy abstraction layers, opaque default chunkers, and version churn. Writing custom modular Python components (~150 lines) provided 100% control over metadata preservation and deterministic unit testing (`pytest`).
+
+### 9. Pre-Filtering vs. Post-Filtering vs. The Naive Top-K Bug
+* **Native Pre-filtering (Best Practice)**: Vector DB restricts search space using metadata (`where={"status": "active"}`) *before/during* vector search. Guarantees all $K$ returned results are active/valid.
+* **Broad Candidate Post-filtering**: Retrieve broad pool ($N=25$), filter in Python, take top $K$. Compute-heavy fallback if DB lacks native filtering.
+* **Naive Post-filtering (Dangerous Bug)**: Retrieve small Top-3 *first*, then filter in Python. If the top 3 nearest vectors are superseded/draft items, post-filtering drops all 3, leaving the LLM with **zero context**!

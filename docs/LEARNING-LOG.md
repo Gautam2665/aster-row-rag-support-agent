@@ -29,6 +29,8 @@
    * **Correction**: Proved via experiment ([`legacy_policy_experiment.py`](file:///c:/Users/HP/OneDrive/Desktop/ai-intern-test/ai-agent-intern-test/experiments/legacy_policy_experiment.py)) that superseded legacy policies (60 days) produce high similarity scores (~0.65) for return questions. Metadata filtering is mandatory.
 5. **Misconception**: Added fallback logic between OpenAI and SentenceTransformer embeddings in an educational script.
    * **Correction**: Recognized that fallback logic must **never** enter production, because vector dimensions (1536 vs 384) cannot be mixed in a single vector index.
+6. **Misconception**: Post-filtering small Top-K results in Python (Naive Post-filtering Anti-Pattern).
+   * **Correction**: Filtering *after* retrieving a small Top-3 causes a severe failure bug (if top 3 nearest vectors are superseded/draft items, post-filtering drops all 3, leaving zero context). Native Pre-filtering inside ChromaDB (`where` clause) ensures vector search operates *only* over active documents, guaranteeing all returned items are valid evidence.
 
 ---
 

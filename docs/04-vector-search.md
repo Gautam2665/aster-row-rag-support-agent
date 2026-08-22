@@ -70,7 +70,45 @@ User Question ──► Embed Query ──► HNSW Graph Query ──► Top-K C
 
 ---
 
-## 7. Metadata Stored Alongside Vectors
+## 7. The 3 Filtering Strategies: Native Pre-filtering vs. Post-filtering vs. The Naive Bug
+
+Filtering can technically happen at three different stages in a retrieval pipeline:
+
+### 1. Native Pre-filtering (Inside Vector DB — Best Practice & Our Implementation)
+* **Workflow**: Query + Filter Condition (`where={"status": "active"}`) $\rightarrow$ Vector DB restricts vector search space *before/during* HNSW graph traversal $\rightarrow$ Returns Top-$K$ active chunks directly.
+* **Pros**: Fast, single-pass, and **guarantees that all $K$ returned results are active and valid evidence**.
+* **Our Implementation**: We use ChromaDB's native `where` query parameter:
+  ```python
+  where={
+      "$and": [
+          {"status": {"$eq": "active"}},
+          {"policy_authority": {"$eq": "official"}},
+          {"audience": {"$eq": "customer"}},
+          {"customer_answering": {"$eq": True}}
+      ]
+  }
+  ```
+
+### 2. Retrieve Broadly $\rightarrow$ Post-Filter (Candidate Pool Approach)
+* **Workflow**: Query $\rightarrow$ Vector DB returns a broad candidate pool (e.g. Top-25 or Top-30) $\rightarrow$ Python application filters out superseded/draft chunks $\rightarrow$ Selects Top-$K$ remaining valid chunks.
+* **Pros**: Useful if the underlying vector store lacks native metadata filtering operators.
+* **Cons**: Consumes slightly more bandwidth and compute.
+
+### 3. The Naive Bug: Top-$K$ BEFORE Filtering (DO NOT DO THIS)
+* **Workflow**: Query $\rightarrow$ Vector DB returns small Top-3 $\rightarrow$ Python application runs metadata checks on those 3 items $\rightarrow$ Drops invalid/superseded items.
+* **DANGEROUS BUG**: If the top 3 nearest vectors happen to be superseded policies (e.g. 60-day return policy) or draft notes, post-filtering drops all 3, leaving your agent with **zero context**!
+
+### Summary Comparison Table
+
+| Method | When Filtering Happens | How It Works | Trade-off / Risk |
+|---|---|---|---|
+| **Native Pre-filtering** *(Best Practice — Our Choice)* | **Before / During Search** | Vector DB restricts search space using `where` metadata filters before computing nearest neighbors. | **Fast, optimal compute, guarantees all $K$ results are active and valid.** |
+| **Broad Candidate Post-filtering** | **After broad candidate pool ($N=25$), before final $K$** | Search for broad pool ($N=25$), apply metadata checks in Python to drop inactive docs, then select top $K$. | Acceptable fallback if vector DB lacks filtering, but higher compute/bandwidth cost. |
+| **Naive Post-filtering** *(Dangerous Anti-Pattern Bug)* | **After final small Top-$K$ ($K=3$)** | Retrieve small Top-3 first, then drop inactive items in Python. | **HIGH FAILURE RATE**: If top 3 results are superseded/draft, agent receives zero context. |
+
+---
+
+## 8. Metadata Stored Alongside Vectors
 ChromaDB indexes scalar metadata values alongside vector IDs. Our implementation ([`src/retrieval.py`](file:///c:/Users/HP/OneDrive/Desktop/ai-intern-test/ai-agent-intern-test/src/retrieval.py#L40-L58)) stores:
 * `filename`, `heading`, `source_citation`
 * `document_id`, `title`

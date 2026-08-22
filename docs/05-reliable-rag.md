@@ -69,16 +69,30 @@ In document `14-internal-content-migration-notes.md`, a vendor inserted a prompt
 
 ---
 
-## 6. Candidate Retrieval vs. Evidence Selection
+## 6. Candidate Retrieval vs. Evidence Selection & Filtering Mechanics
 
 ```text
 Vector Store (ChromaDB)
    │
-   ├── [Candidate 1] 01-returns-policy-current.md (Active)    ──► PASSES FILTER ──► Evidence
-   ├── [Candidate 2] 02-returns-policy-legacy.md (Superseded) ──► DROPPED
-   ├── [Candidate 3] 14-internal-migration-notes.md (Draft)    ──► DROPPED
-   └── [Candidate 4] 05-domestic-shipping.md (Active)        ──► PASSES FILTER ──► Evidence
+   ├── [Candidate 1] 01-returns-policy-current.md (Active)    ──► PASSES NATIVE FILTER ──► Evidence
+   ├── [Candidate 2] 02-returns-policy-legacy.md (Superseded) ──► DROPPED BEFORE TOP-K
+   ├── [Candidate 3] 14-internal-migration-notes.md (Draft)    ──► DROPPED BEFORE TOP-K
+   └── [Candidate 4] 05-domestic-shipping.md (Active)        ──► PASSES NATIVE FILTER ──► Evidence
 ```
+
+### The 3 Filtering Mechanics
+
+1. **Native Pre-filtering (Best Practice — Used in Our Implementation)**
+   * **Mechanism**: Filtering condition (`where={"status": "active"}`) is applied **inside the Vector Database during vector search**.
+   * **Why Best**: Guarantees that 100% of the returned Top-$K$ items are active, valid evidence.
+
+2. **Retrieve Broadly $\rightarrow$ Post-Filter (Candidate Pool Approach)**
+   * **Mechanism**: Retrieve $N=25$ broad candidates, filter in Python, and take Top-$K=3$.
+   * **Why**: Useful fallback if the vector DB lacks metadata filtering, but costs higher compute.
+
+3. **Naive Post-filtering (Dangerous Bug — DO NOT DO THIS)**
+   * **Mechanism**: Retrieve a small Top-$K=3$ first, *then* filter out inactive docs in Python.
+   * **Why Dangerous**: If the top 3 nearest vectors happen to be superseded policies or draft notes, post-filtering drops all 3, leaving your LLM with **zero context**!
 
 ---
 
