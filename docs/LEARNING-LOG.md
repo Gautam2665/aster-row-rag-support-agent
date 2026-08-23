@@ -76,3 +76,23 @@
 * [`src/agent.py`](file:///c:/Users/HP/OneDrive/Desktop/ai-intern-test/ai-agent-intern-test/src/agent.py): `SupportAgent` bounded state machine & intent classifier.
 * [`src/evaluation.py`](file:///c:/Users/HP/OneDrive/Desktop/ai-intern-test/ai-agent-intern-test/src/evaluation.py): `EvaluationRunner` & visible evaluation cases analyzer.
 * **43 Unit Tests** across 8 test suites passing cleanly in `pytest`.
+
+---
+
+## 9. Day 3 Personal Learning Journal & Technical Evolution
+
+### Key Day 3 Concepts Learned
+1. **Bounded Conversation Memory**: Memory stores short-term dialogue in a FIFO queue (`max_turns=5`), scoped strictly per session (`SessionMemoryStore`). Memory is UNTRUSTED DATA and NEVER overrides authoritative KB evidence.
+2. **Query Contextualization**: Separating `retrieval_query` (used for ChromaDB search) from `user_query` (raw verbatim input preserved in `<user_question>`) ensures high-precision vector search for ambiguous follow-ups without altering the user's voice.
+3. **ReAct Planner-Action-Observation Loop**: Decoupling action planning (`LLMPlanner`), action validation (`ActionValidator`), tool authorization (`SupportAgent.execute_tool_safely`), and observation feedback (`AgentObservation`) prevents arbitrary code execution and eliminates duplicate action loops.
+4. **Stanford CME295 Alignment**: Mapped codebase components to Stanford CME295 Lecture 7 (Transformers & Large Language Models), mastering Compound AI Systems, Contextual Retrieval, Function Calling, ReAct Agent Loops, Safety, and Evaluation.
+
+---
+
+## 10. What I Implemented in Day 3
+* [`src/memory.py`](file:///c:/Users/HP/OneDrive/Desktop/ai-intern-test/ai-agent-intern-test/src/memory.py): `ConversationTurn`, `ConversationMemory`, and `SessionMemoryStore`.
+* [`src/context.py`](file:///c:/Users/HP/OneDrive/Desktop/ai-intern-test/ai-agent-intern-test/src/context.py): `ContextBuilder` assembling grounded prompts with `<conversation_history>` XML tags.
+* [`src/query_context.py`](file:///c:/Users/HP/OneDrive/Desktop/ai-intern-test/ai-agent-intern-test/src/query_context.py): `QueryContextualizer` constructing search queries without modifying raw `user_query`.
+* [`src/planner.py`](file:///c:/Users/HP/OneDrive/Desktop/ai-intern-test/ai-agent-intern-test/src/planner.py): ReAct architecture (`ActionType`, `AgentAction`, `AgentObservation`, `ActionValidator`, `BasePlanner`, `MockPlanner`, `LLMPlanner`).
+* [`src/agent.py`](file:///c:/Users/HP/OneDrive/Desktop/ai-intern-test/ai-agent-intern-test/src/agent.py): `SupportAgent` state machine orchestrating the bounded ReAct planning loop (`max_iterations=3`).
+* **100 Unit Tests** across 15 test files passing 100% cleanly in `pytest`.

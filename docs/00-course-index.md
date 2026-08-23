@@ -32,6 +32,18 @@ This repository serves as both a production implementation and a self-contained 
 
 ---
 
+## Day 3 Study Curriculum
+
+18. **[18-agent-foundations.md](file:///c:/Users/HP/OneDrive/Desktop/ai-intern-test/ai-agent-intern-test/docs/18-agent-foundations.md)**: AI Agent definition, LLM vs Workflow vs Autonomous Agent, state tracking in compound AI systems (`AgentState`).
+19. **[19-conversation-memory.md](file:///c:/Users/HP/OneDrive/Desktop/ai-intern-test/ai-agent-intern-test/docs/19-conversation-memory.md)**: Bounded short-term conversation memory (`SessionMemoryStore`), FIFO queue eviction (`max_turns=5`), session isolation, why memory $\neq$ RAG.
+20. **[20-query-contextualization.md](file:///c:/Users/HP/OneDrive/Desktop/ai-intern-test/ai-agent-intern-test/docs/20-query-contextualization.md)**: Context construction (`ContextBuilder`), query contextualization (`QueryContextualizer`), separating `retrieval_query` from `user_query`, prompt grounding.
+21. **[21-planning-action-observation.md](file:///c:/Users/HP/OneDrive/Desktop/ai-intern-test/ai-agent-intern-test/docs/21-planning-action-observation.md)**: ReAct architecture (Thought-Action-Observation loop), structured actions (`AgentAction`), strict schema validation (`ActionValidator`), tool execution authorization, observation feedback (`AgentObservation`), bounded loops (`max_iterations=3`).
+22. **[22-agent-security-and-control.md](file:///c:/Users/HP/OneDrive/Desktop/ai-intern-test/ai-agent-intern-test/docs/22-agent-security-and-control.md)**: Defense-in-depth security matrix, mapping theoretical agent concepts to `src/` codebase implementation, Data-Instruction separation, PII sanitization, non-executable reasoning.
+23. **[23-day3-architecture.md](file:///c:/Users/HP/OneDrive/Desktop/ai-intern-test/ai-agent-intern-test/docs/23-day3-architecture.md)**: Complete Day 3 ASCII system architecture diagram, Day 1 $\rightarrow$ Day 3 architecture evolution, complete codebase file map (`src/` and `tests/`).
+24. **[24-day3-interview-revision.md](file:///c:/Users/HP/OneDrive/Desktop/ai-intern-test/ai-agent-intern-test/docs/24-day3-interview-revision.md)**: 30-second Day 3 elevator pitch, Stanford CME295 (Lecture 7) concept mapping matrix, rapid Q&A cheat sheet.
+
+---
+
 ## Architectural Decision Records (ADR)
 
 * **[decisions/001-rag-foundation.md](file:///c:/Users/HP/OneDrive/Desktop/ai-intern-test/ai-agent-intern-test/docs/decisions/001-rag-foundation.md)**: RAG Foundation Architecture — Lightweight Python components + local ChromaDB vs LangChain / LangGraph frameworks.

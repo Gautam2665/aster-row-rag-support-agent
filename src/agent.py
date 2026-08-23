@@ -9,6 +9,10 @@ from src.retrieval import KBVectorStore
 from src.prompt_builder import build_grounded_prompt
 from src.llm import BaseLLMProvider, GroundedResponse, get_default_provider
 from src.tools.order_lookup import OrderLookupTool, CustomerSafeOrderResult
+from src.memory import SessionMemoryStore, ConversationTurn
+from src.context import ContextBuilder
+from src.query_context import QueryContextualizer
+from src.planner import BasePlanner, MockPlanner, AgentAction, AgentObservation, ActionType, ActionValidator
 
 
 @dataclass
@@ -18,6 +22,7 @@ class AgentState:
     """
     session_id: str
     user_query: str
+    retrieval_query: Optional[str] = None
     normalized_order_id: Optional[str] = None
     intent_category: str = "general_policy"  # "policy", "order_status", "clarification"
 
@@ -25,6 +30,9 @@ class AgentState:
     evidence_chunks: List[KBChunk] = field(default_factory=list)
     order_result: Optional[CustomerSafeOrderResult] = None
     tool_calls_made: List[str] = field(default_factory=list)
+    history_turns: List[ConversationTurn] = field(default_factory=list)
+    planned_actions: List[AgentAction] = field(default_factory=list)
+    observations: List[AgentObservation] = field(default_factory=list)
     
     # Bounded Loop Control
     iterations: int = 0
@@ -39,7 +47,8 @@ class AgentState:
 class SupportAgent:
     """
     Bounded Support Agent state machine orchestrating RAG retrieval,
-    secure order lookups, prompt building, and LLM generation.
+    query contextualization, secure order lookups, prompt building,
+    bounded conversation memory, action planning, observation tracking, and LLM generation.
     """
 
     ORDER_ID_REGEX = re.compile(r"\bORD-\d{4}\b", re.IGNORECASE)
@@ -55,11 +64,16 @@ class SupportAgent:
         vector_store: Optional[KBVectorStore] = None,
         order_tool: Optional[OrderLookupTool] = None,
         llm_provider: Optional[BaseLLMProvider] = None,
+        planner: Optional[BasePlanner] = None,
+        memory_store: Optional[SessionMemoryStore] = None,
         max_iterations: int = 3,
+        max_history_turns: int = 5,
     ):
         self.vector_store = vector_store or KBVectorStore()
         self.order_tool = order_tool or OrderLookupTool()
         self.llm_provider = llm_provider or get_default_provider()
+        self.planner = planner or MockPlanner()
+        self.memory_store = memory_store or SessionMemoryStore(max_turns_per_session=max_history_turns)
         self.max_iterations = max_iterations
 
         # Explicit tool allowlist
@@ -130,47 +144,94 @@ class SupportAgent:
 
     def process_turn(self, user_query: str, session_id: str = "default_session") -> AgentState:
         """
-        Execute a single turn through the bounded state machine.
+        Execute a single turn through the bounded state machine with planner-driven action execution
+        and explicit observation recording.
         """
         normalized_order_id = self.extract_order_id(user_query)
         intent = self.detect_intent(user_query, normalized_order_id)
 
+        # Retrieve bounded conversation history for this session
+        recent_history = self.memory_store.get_recent_turns(session_id)
+
+        # Construct separate retrieval-oriented query via QueryContextualizer
+        retrieval_query = QueryContextualizer.build_retrieval_query(user_query, recent_history)
+
         state = AgentState(
             session_id=session_id,
             user_query=user_query,
+            retrieval_query=retrieval_query,
             normalized_order_id=normalized_order_id,
             intent_category=intent,
+            history_turns=recent_history,
             max_iterations=self.max_iterations,
         )
 
-        # Enforce Bounded Iterations
+        # Check Privacy Keywords Handoff Rule
+        query_lower = user_query.lower()
+        if any(kw in query_lower for kw in self.PRIVACY_KEYWORDS):
+            state.handoff_recommended = True
+
+        # Bounded Planning & Observation Loop
         while state.iterations < state.max_iterations:
             state.iterations += 1
 
-            # PATH 1: Clarification Path (Order question, missing Order ID)
-            if state.intent_category == "clarification":
+            # Plan next action based on current state & prior observations
+            try:
+                action = self.planner.plan_next_action(state)
+                ActionValidator.validate(action)
+            except Exception as e:
+                # Safe fallback if planner generates an invalid action or raises exception
+                action = AgentAction(
+                    action_type=ActionType.HANDOFF,
+                    reasoning=f"Planner validation/execution error fallback: {str(e)}"
+                )
+
+            state.planned_actions.append(action)
+
+            # ACTION EXECUTION 1: Clarification Action
+            if action.action_type == ActionType.CLARIFY:
                 state.final_answer = (
                     "Could you please provide your order ID (for example, ORD-1007) so I can check your order status?"
                 )
                 state.tool_calls_made = []
+                obs = AgentObservation(
+                    action_type=ActionType.CLARIFY,
+                    success=True,
+                    result="Requested order ID clarification from user"
+                )
+                state.observations.append(obs)
+                self.memory_store.add_turn(session_id, user_query, state.final_answer)
                 return state
 
-            # PATH 2: Order Status Path (Order ID Present)
-            if state.intent_category == "order_status" and state.normalized_order_id:
-                order_res = self.execute_tool_safely("order_lookup", order_id=state.normalized_order_id)
+            # ACTION EXECUTION 2: Lookup Order Action
+            if action.action_type == ActionType.LOOKUP_ORDER:
+                raw_oid = action.parameters.get("order_id", "") or state.normalized_order_id or ""
+                target_oid = self.extract_order_id(raw_oid) or raw_oid.strip()
+                
+                order_res = self.execute_tool_safely("order_lookup", order_id=target_oid)
                 state.order_result = order_res
                 state.tool_calls_made.append("order_lookup")
 
                 if not order_res.found:
                     state.handoff_recommended = True
 
-                # Also retrieve policy context if applicable (e.g. shipping/returns)
-                state.evidence_chunks = self.vector_store.search(user_query, top_k=2, filter_customer_eligible=True)
-                break
+                # Retrieve policy context for order item details
+                state.evidence_chunks = self.vector_store.search(state.retrieval_query, top_k=2, filter_customer_eligible=True)
 
-            # PATH 3: Policy / Knowledge-Base Path
-            if state.intent_category == "policy":
-                state.evidence_chunks = self.vector_store.search(user_query, top_k=12, filter_customer_eligible=True)
+                obs = AgentObservation(
+                    action_type=ActionType.LOOKUP_ORDER,
+                    success=order_res.found,
+                    result=order_res,
+                    error_message=order_res.error_message if not order_res.found else None,
+                    handoff_recommended=state.handoff_recommended,
+                )
+                state.observations.append(obs)
+                continue
+
+            # ACTION EXECUTION 3: Retrieve KB Action
+            if action.action_type == ActionType.RETRIEVE_KB:
+                search_q = action.parameters.get("query") or state.retrieval_query
+                state.evidence_chunks = self.vector_store.search(search_q, top_k=12, filter_customer_eligible=True)
                 
                 retrieved_filenames = {c.filename for c in state.evidence_chunks}
                 
@@ -183,29 +244,61 @@ class SupportAgent:
                     state.handoff_recommended = True
                 
                 # Handoff Rule C: Damaged / defective item exception requiring human review
-                query_lower = user_query.lower()
                 if any(kw in query_lower for kw in ("damaged", "defective", "broken")):
                     state.handoff_recommended = True
+
+                obs = AgentObservation(
+                    action_type=ActionType.RETRIEVE_KB,
+                    success=len(state.evidence_chunks) > 0,
+                    result=state.evidence_chunks,
+                    error_message="No evidence retrieved" if not state.evidence_chunks else None,
+                    handoff_recommended=state.handoff_recommended,
+                )
+                state.observations.append(obs)
+                continue
+
+            # ACTION EXECUTION 4: Handoff Action
+            if action.action_type == ActionType.HANDOFF:
+                state.handoff_recommended = True
+                obs = AgentObservation(
+                    action_type=ActionType.HANDOFF,
+                    success=True,
+                    result="Handoff recommended to human support",
+                    handoff_recommended=True,
+                )
+                state.observations.append(obs)
                 break
 
-        # Check Privacy Keywords Handoff Rule
-        query_lower = user_query.lower()
-        if any(kw in query_lower for kw in self.PRIVACY_KEYWORDS):
-            state.handoff_recommended = True
+            # ACTION EXECUTION 5: Respond Action
+            if action.action_type == ActionType.RESPOND:
+                obs = AgentObservation(
+                    action_type=ActionType.RESPOND,
+                    success=True,
+                    result="Proceeding to grounded response generation",
+                    handoff_recommended=state.handoff_recommended,
+                )
+                state.observations.append(obs)
+                break
 
-        # Safety Fallback if iteration limit reached
+        # Safety Fallback if iteration limit reached without generating an answer
         if state.iterations >= state.max_iterations and not state.final_answer and not state.evidence_chunks and not state.order_result:
             state.handoff_recommended = True
             state.final_answer = "I apologize, but I am unable to process your request at this time. Please contact customer support."
+            self.memory_store.add_turn(session_id, user_query, state.final_answer)
             return state
 
-        # Assemble Grounded Prompt Payload
-        prompt_payload = build_grounded_prompt(user_query, state.evidence_chunks)
-
-        # If order data exists, append safe order context to user prompt
+        # Format order data context if present
+        order_data_context = None
         if state.order_result:
-            order_context = self.format_order_data_context(state.order_result)
-            prompt_payload["user_prompt"] = f"{order_context}\n\n{prompt_payload['user_prompt']}"
+            order_data_context = self.format_order_data_context(state.order_result)
+
+        # Build grounded prompt with raw user_query and multi-turn conversation context
+        prompt_payload = ContextBuilder.build_prompt_with_context(
+            user_question=user_query,
+            evidence_chunks=state.evidence_chunks,
+            history_turns=recent_history,
+            order_data_context=order_data_context,
+        )
 
         # Call LLM Provider
         answer = self.llm_provider.generate(
@@ -215,5 +308,8 @@ class SupportAgent:
 
         state.final_answer = answer.strip()
         state.citations = [c.source_citation for c in state.evidence_chunks if c.source_citation]
+
+        # Save turn to session memory store with raw user_query
+        self.memory_store.add_turn(session_id, user_query, state.final_answer)
 
         return state
