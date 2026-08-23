@@ -78,13 +78,15 @@ ai-agent-intern-test/
 │   ├── memory.py             # Bounded Conversation Memory (ConversationTurn, SessionMemoryStore)
 │   ├── context.py            # Structured ContextBuilder (XML conversation_history tags)
 │   ├── query_context.py      # QueryContextualizer (separate retrieval_query building)
-│   ├── planner.py            # ReAct Planner (AgentAction, AgentObservation, ActionValidator, LLMPlanner)
+│   ├── planner.py            # ReAct Planner (AgentAction, AgentObservation, ActionValidator, LLMPlanner, FailureCategory)
+│   ├── trace.py              # AgentTrace & PII-sanitized TraceEvent logger
 │   ├── agent.py              # SupportAgent Bounded State Machine Orchestrator
-│   ├── evaluation.py         # EvaluationRunner & Visible Case Evaluator
+│   ├── evaluation.py         # EvaluationRunner & Visible Case Evaluator (Offline & Live)
+│   ├── cli.py                # Minimal CLI Application Runtime Adapter
 │   └── tools/
 │       ├── __init__.py
 │       └── order_lookup.py   # OrderLookupTool Security Firewall & CustomerSafeOrderResult
-├── tests/                    # 100 Unit Tests Across 15 Suites (100% Passing)
+├── tests/                    # 154 Unit Tests Across 21 Suites (100% Passing)
 │   ├── test_models.py
 │   ├── test_ingestion.py
 │   ├── test_retrieval.py
@@ -98,6 +100,13 @@ ai-agent-intern-test/
 │   ├── test_query_context.py
 │   ├── test_planner.py
 │   ├── test_planner_contract.py
+│   ├── test_observations.py
+│   ├── test_agent_control_loop.py
+│   ├── test_context_builder.py
+│   ├── test_agent_trace.py
+│   ├── test_failure_handling.py
+│   ├── test_evaluation_llm.py
+│   └── test_cli.py
 │   ├── test_agent_planner.py
 │   └── test_observations.py
 └── docs/                      # 25 Comprehensive Study & Revision Modules

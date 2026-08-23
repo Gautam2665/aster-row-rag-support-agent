@@ -93,6 +93,9 @@
 * [`src/memory.py`](file:///c:/Users/HP/OneDrive/Desktop/ai-intern-test/ai-agent-intern-test/src/memory.py): `ConversationTurn`, `ConversationMemory`, and `SessionMemoryStore`.
 * [`src/context.py`](file:///c:/Users/HP/OneDrive/Desktop/ai-intern-test/ai-agent-intern-test/src/context.py): `ContextBuilder` assembling grounded prompts with `<conversation_history>` XML tags.
 * [`src/query_context.py`](file:///c:/Users/HP/OneDrive/Desktop/ai-intern-test/ai-agent-intern-test/src/query_context.py): `QueryContextualizer` constructing search queries without modifying raw `user_query`.
-* [`src/planner.py`](file:///c:/Users/HP/OneDrive/Desktop/ai-intern-test/ai-agent-intern-test/src/planner.py): ReAct architecture (`ActionType`, `AgentAction`, `AgentObservation`, `ActionValidator`, `BasePlanner`, `MockPlanner`, `LLMPlanner`).
+* [`src/planner.py`](file:///c:/Users/HP/OneDrive/Desktop/ai-intern-test/ai-agent-intern-test/src/planner.py): ReAct architecture (`ActionType`, `AgentAction`, `AgentObservation`, `ActionValidator`, `FailureCategory`, `LLMPlanner`).
+* [`src/trace.py`](file:///c:/Users/HP/OneDrive/Desktop/ai-intern-test/ai-agent-intern-test/src/trace.py): `AgentTrace` & `TraceEvent` with automatic PII sanitization.
 * [`src/agent.py`](file:///c:/Users/HP/OneDrive/Desktop/ai-intern-test/ai-agent-intern-test/src/agent.py): `SupportAgent` state machine orchestrating the bounded ReAct planning loop (`max_iterations=3`).
-* **100 Unit Tests** across 15 test files passing 100% cleanly in `pytest`.
+* [`src/evaluation.py`](file:///c:/Users/HP/OneDrive/Desktop/ai-intern-test/ai-agent-intern-test/src/evaluation.py): `EvaluationRunner` with offline state assertion verification and optional live LLM semantic validation.
+* [`src/cli.py`](file:///c:/Users/HP/OneDrive/Desktop/ai-intern-test/ai-agent-intern-test/src/cli.py): Minimal CLI application runtime supporting offline, `--live`, and `--debug` modes.
+* **154 Unit Tests** across 21 test files passing 100% cleanly in `pytest`.
