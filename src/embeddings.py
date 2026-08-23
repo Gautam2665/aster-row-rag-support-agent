@@ -32,10 +32,17 @@ class EmbeddingProvider:
             return []
 
         if self._openai_client:
-            response = self._openai_client.embeddings.create(
-                input=texts, model=self.model_name
-            )
-            return [item.embedding for item in response.data]
+            try:
+                response = self._openai_client.embeddings.create(
+                    input=texts, model=self.model_name
+                )
+                return [item.embedding for item in response.data]
+            except Exception:
+                # Graceful fallback to local SentenceTransformer if OpenAI API fails or key is invalid
+                if self._model is None:
+                    from sentence_transformers import SentenceTransformer
+                    self._model = SentenceTransformer("all-MiniLM-L6-v2")
+                self._openai_client = None
 
         embeddings = self._model.encode(texts)
         if isinstance(embeddings, np.ndarray):

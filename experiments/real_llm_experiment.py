@@ -1,7 +1,7 @@
 """
 Educational Experiment #4: Real LLM Inference Test
-Sends retrieved knowledge-base evidence and query through OpenAILLMProvider to verify
-that the live LLM correctly selects TrailPlus-specific 45-day evidence from retrieved context.
+Sends retrieved knowledge-base evidence and query through OpenAILLMProvider and SupportAgent
+to verify that live LLM generation correctly handles policy questions with source citations.
 """
 
 import sys
@@ -16,9 +16,12 @@ load_dotenv()
 
 from src.ingestion import ingest_kb_directory
 from src.retrieval import KBVectorStore
-from src.llm import generate_grounded_response, OpenAILLMProvider
+from src.tools.order_lookup import OrderLookupTool
+from src.llm import OpenAILLMProvider
+from src.agent import SupportAgent
 
 KB_DIR = Path("knowledge-base")
+ORDERS_PATH = Path("data/orders.json")
 
 
 def main():
@@ -37,49 +40,45 @@ def main():
     query = "How long do TrailPlus members have to return an item?"
 
     print("=" * 80)
-    print("REAL LLM GENERATION EXPERIMENT")
+    print("REAL LLM GENERATION EXPERIMENT WITH SUPPORT AGENT")
     print("=" * 80)
     print(f"User Query: \"{query}\"\n")
 
-    # Step 1: Ingest KB & vector index
+    # Step 1: Setup KB Vector Store & Order Tool
     print("[Step 1] Ingesting & vector indexing knowledge base...")
     chunks = ingest_kb_directory(KB_DIR)
     vector_store = KBVectorStore(collection_name="real_llm_exp_kb")
     vector_store.clear()
     vector_store.index_chunks(chunks)
+    order_tool = OrderLookupTool(data_path=ORDERS_PATH)
 
-    # Step 2: Native pre-filtered retrieval
-    print("[Step 2] Retrieving evidence chunks from ChromaDB...")
-    retrieved_chunks = vector_store.search(
-        query=query,
-        top_k=3,
-        filter_customer_eligible=True
-    )
-
-    print(f"\n[Retrieved Evidence Chunks ({len(retrieved_chunks)})]")
-    for i, chunk in enumerate(retrieved_chunks, 1):
-        print(f"  {i}. {chunk.source_citation}")
-        print(f"     Text: {chunk.text[:130]}...\n")
-
-    # Step 3: Call OpenAILLMProvider with build_grounded_prompt
-    print("[Step 3] Calling OpenAILLMProvider with grounded prompt...")
+    # Step 2: Initialize SupportAgent with OpenAILLMProvider
+    print("[Step 2] Initializing SupportAgent with OpenAILLMProvider...")
     provider = OpenAILLMProvider(model_name="gpt-4o-mini")
-    response = generate_grounded_response(
-        user_question=query,
-        evidence_chunks=retrieved_chunks,
-        provider=provider
+    agent = SupportAgent(
+        vector_store=vector_store,
+        order_tool=order_tool,
+        llm_provider=provider,
     )
 
-    print("\n" + "=" * 80)
-    print("FINAL PROMPT SENT TO OPENAI")
-    print("=" * 80)
-    print(response.prompt_payload["full_prompt"])
+    # Step 3: Execute Turn
+    print("[Step 3] Executing turn through agent state machine...")
+    state = agent.process_turn(user_query=query, session_id="exp_real_llm")
 
     print("\n" + "=" * 80)
-    print("RAW LLM ANSWER FROM OPENAI (gpt-4o-mini)")
+    print("AGENT FINAL ANSWER")
     print("=" * 80)
-    print(f"Answer:\n{response.answer}\n")
-    print(f"Returned Citations: {response.source_citations}")
+    print(f"Answer:\n{state.final_answer}\n")
+    print(f"Citations: {state.citations}")
+    print(f"Handoff Recommended: {state.handoff_recommended}")
+    print("=" * 80)
+
+    print("\n" + "=" * 80)
+    print("SANITIZED AGENT TRACE")
+    print("=" * 80)
+    for event in state.trace:
+        clean_event = event.to_dict()
+        print(f"[{clean_event['timestamp']}] {clean_event['event_type']} (Iter {clean_event['iteration']}): {clean_event['summary']}")
     print("=" * 80)
 
 

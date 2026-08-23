@@ -15,6 +15,9 @@ class ActionType:
     RESPOND = "RESPOND"
     HANDOFF = "HANDOFF"
 
+    TERMINAL_ACTIONS = {CLARIFY, RESPOND, HANDOFF}
+    NON_TERMINAL_ACTIONS = {RETRIEVE_KB, LOOKUP_ORDER}
+
     @classmethod
     def all_allowed(cls) -> Set[str]:
         return {
@@ -24,6 +27,10 @@ class ActionType:
             cls.RESPOND,
             cls.HANDOFF,
         }
+
+    @classmethod
+    def is_terminal(cls, action_type: str) -> bool:
+        return action_type in cls.TERMINAL_ACTIONS
 
 
 @dataclass
@@ -35,12 +42,24 @@ class AgentAction:
     parameters: Dict[str, Any] = field(default_factory=dict)
     reasoning: Optional[str] = None
 
+    @property
+    def is_terminal(self) -> bool:
+        return ActionType.is_terminal(self.action_type)
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             "action_type": self.action_type,
             "parameters": self.parameters,
             "reasoning": self.reasoning,
         }
+
+
+class FailureCategory:
+    """Explicit failure categories for agent execution and recovery policy."""
+    TOOL_ERROR = "TOOL_ERROR"               # Tool execution raised an exception or failed
+    BUSINESS_FAILURE = "BUSINESS_FAILURE"   # Operation executed successfully but domain rules could not fulfill (e.g. unknown order)
+    RETRIEVAL_FAILURE = "RETRIEVAL_FAILURE" # Knowledge base retrieval returned no usable evidence
+    PLANNER_FAILURE = "PLANNER_FAILURE"     # Planner provider failed or produced unapproved/invalid action
 
 
 @dataclass
@@ -53,6 +72,7 @@ class AgentObservation:
     success: bool
     result: Any = None
     error_message: Optional[str] = None
+    failure_category: Optional[str] = None
     handoff_recommended: bool = False
 
     def to_dict(self) -> Dict[str, Any]:
@@ -70,6 +90,7 @@ class AgentObservation:
             "success": self.success,
             "result_summary": summary,
             "error_message": self.error_message,
+            "failure_category": self.failure_category,
             "handoff_recommended": self.handoff_recommended,
         }
 

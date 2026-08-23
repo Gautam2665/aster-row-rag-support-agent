@@ -1,4 +1,5 @@
 import json
+import os
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
 from typing import List, Dict, Any, Optional
@@ -6,7 +7,7 @@ from typing import List, Dict, Any, Optional
 from src.agent import SupportAgent, AgentState
 from src.retrieval import KBVectorStore
 from src.tools.order_lookup import OrderLookupTool
-from src.llm import BaseLLMProvider, MockLLMProvider, get_default_provider
+from src.llm import BaseLLMProvider, MockLLMProvider, OpenAILLMProvider, get_default_provider
 from src.ingestion import ingest_kb_directory
 
 
@@ -30,6 +31,8 @@ class CaseEvalReport:
     handoff_recommended: bool
     final_answer: Optional[str]
     assertions: List[CaseAssertionResult] = field(default_factory=list)
+    deterministic_status: str = "PASS"  # "PASS", "FAIL"
+    live_llm_status: str = "UNAVAILABLE"  # "PASS", "FAIL", "UNAVAILABLE"
     overall_status: str = "PASS"  # "PASS", "FAIL", "UNVERIFIED_REQUIRES_LLM"
 
     def to_dict(self) -> Dict[str, Any]:
@@ -40,15 +43,17 @@ class EvaluationRunner:
     """
     Evaluation runner for Aster & Row support agent visible evaluation cases.
     Evaluates state machine transitions, tool calls, metadata filtering, privacy,
-    and marks LLM generation concepts as UNVERIFIED_REQUIRES_LLM when running offline.
+    and supports optional live LLM semantic response verification.
     """
 
     def __init__(
         self,
         cases_json_path: Optional[Path] = None,
         agent: Optional[SupportAgent] = None,
+        use_live_llm: bool = False,
     ):
         self.cases_json_path = cases_json_path or Path("evaluation/visible-cases.json")
+        self.use_live_llm = use_live_llm
         if agent:
             self.agent = agent
         else:
@@ -59,7 +64,12 @@ class EvaluationRunner:
             vector_store.index_chunks(chunks)
             
             order_tool = OrderLookupTool(data_path=Path("data/orders.json"))
-            llm_provider = get_default_provider()
+            
+            if self.use_live_llm and os.getenv("OPENAI_API_KEY"):
+                llm_provider = OpenAILLMProvider()
+            else:
+                llm_provider = MockLLMProvider()
+
             self.agent = SupportAgent(
                 vector_store=vector_store,
                 order_tool=order_tool,
@@ -191,7 +201,7 @@ class EvaluationRunner:
                 )
             )
 
-        # 6. Evaluate Semantic Concepts (Mark UNVERIFIED_REQUIRES_LLM under MockLLMProvider)
+        # 6. Evaluate Semantic Concepts (must_include, must_not_include)
         semantic_keys = ["must_include", "must_not_include", "must_include_concepts", "must_ask_for", "must_not_invent"]
         has_semantic_expectations = any(k in expect for k in semantic_keys)
 
@@ -207,29 +217,52 @@ class EvaluationRunner:
                     )
                 )
             else:
-                # Live LLM check
                 answer_lower = (state.final_answer or "").lower()
                 concepts_passed = True
+                fail_details = []
+
                 if "must_include" in expect:
-                    concepts_passed = concepts_passed and all(inc.lower() in answer_lower for inc in expect["must_include"])
+                    for inc in expect["must_include"]:
+                        if inc.lower() not in answer_lower:
+                            concepts_passed = False
+                            fail_details.append(f"Missing required phrase: '{inc}'")
+
+                if "must_not_include" in expect:
+                    for exc in expect["must_not_include"]:
+                        if exc.lower() in answer_lower:
+                            concepts_passed = False
+                            fail_details.append(f"Forbidden phrase found: '{exc}'")
+
                 assertions.append(
                     CaseAssertionResult(
                         name="semantic_llm_generation_check",
                         category="grounding",
                         passed=concepts_passed,
                         status="PASS" if concepts_passed else "FAIL",
-                        detail="Evaluated text against semantic expectations.",
+                        detail="Evaluated text against semantic expectations. " + ("; ".join(fail_details) if fail_details else "All semantic requirements met."),
                     )
                 )
 
-        # Determine overall case status
-        any_failed = any(a.status == "FAIL" for a in assertions)
-        any_unverified = any(a.status == "UNVERIFIED_REQUIRES_LLM" for a in assertions)
+        # Separate deterministic state status vs live LLM status vs overall status
+        deterministic_assertions = [a for a in assertions if a.name != "semantic_llm_generation_check"]
+        semantic_assertion = next((a for a in assertions if a.name == "semantic_llm_generation_check"), None)
 
-        if any_failed:
+        det_passed = all(a.status == "PASS" for a in deterministic_assertions)
+        deterministic_status = "PASS" if det_passed else "FAIL"
+
+        if is_mock_llm:
+            live_llm_status = "UNAVAILABLE"
+        elif semantic_assertion:
+            live_llm_status = "PASS" if semantic_assertion.status == "PASS" else "FAIL"
+        else:
+            live_llm_status = "PASS"
+
+        if not det_passed:
             overall = "FAIL"
-        elif any_unverified:
+        elif is_mock_llm:
             overall = "UNVERIFIED_REQUIRES_LLM"
+        elif live_llm_status == "FAIL":
+            overall = "FAIL"
         else:
             overall = "PASS"
 
@@ -243,6 +276,8 @@ class EvaluationRunner:
             handoff_recommended=state.handoff_recommended,
             final_answer=state.final_answer,
             assertions=assertions,
+            deterministic_status=deterministic_status,
+            live_llm_status=live_llm_status,
             overall_status=overall,
         )
 
@@ -265,19 +300,19 @@ class EvaluationRunner:
         return reports
 
     def print_terminal_summary(self, reports: List[CaseEvalReport]):
-        print("\n" + "=" * 90)
+        print("\n" + "=" * 105)
         print(f"VISIBLE EVALUATION CASES REPORT (Total: {len(reports)})")
-        print("=" * 90)
-        print(f"{'Case ID':<32} | {'Category':<22} | {'Intent':<14} | {'Status'}")
-        print("-" * 90)
+        print("=" * 105)
+        print(f"{'Case ID':<30} | {'Category':<20} | {'Intent':<12} | {'State':<8} | {'Live LLM':<12} | {'Overall'}")
+        print("-" * 105)
 
         for r in reports:
-            print(f"{r.case_id:<32} | {r.category:<22} | {r.detected_intent:<14} | {r.overall_status}")
+            print(f"{r.case_id:<30} | {r.category:<20} | {r.detected_intent:<12} | {r.deterministic_status:<8} | {r.live_llm_status:<12} | {r.overall_status}")
 
         passed = sum(1 for r in reports if r.overall_status == "PASS")
         unverified = sum(1 for r in reports if r.overall_status == "UNVERIFIED_REQUIRES_LLM")
         failed = sum(1 for r in reports if r.overall_status == "FAIL")
 
-        print("=" * 90)
+        print("=" * 105)
         print(f"Summary: {passed} PASSED | {unverified} UNVERIFIED (Requires Live LLM) | {failed} FAILED")
-        print("=" * 90 + "\n")
+        print("=" * 105 + "\n")

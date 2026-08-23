@@ -12,7 +12,8 @@ from src.tools.order_lookup import OrderLookupTool, CustomerSafeOrderResult
 from src.memory import SessionMemoryStore, ConversationTurn
 from src.context import ContextBuilder
 from src.query_context import QueryContextualizer
-from src.planner import BasePlanner, MockPlanner, AgentAction, AgentObservation, ActionType, ActionValidator
+from src.planner import BasePlanner, MockPlanner, AgentAction, AgentObservation, ActionType, ActionValidator, FailureCategory
+from src.trace import TraceEvent, TraceEventType
 
 
 @dataclass
@@ -33,6 +34,7 @@ class AgentState:
     history_turns: List[ConversationTurn] = field(default_factory=list)
     planned_actions: List[AgentAction] = field(default_factory=list)
     observations: List[AgentObservation] = field(default_factory=list)
+    trace: List[TraceEvent] = field(default_factory=list)
     
     # Bounded Loop Control
     iterations: int = 0
@@ -144,8 +146,8 @@ class SupportAgent:
 
     def process_turn(self, user_query: str, session_id: str = "default_session") -> AgentState:
         """
-        Execute a single turn through the bounded state machine with planner-driven action execution
-        and explicit observation recording.
+        Execute a single turn through the bounded state machine with planner-driven action execution,
+        explicit observation recording, and structured lifecycle trace logging.
         """
         normalized_order_id = self.extract_order_id(user_query)
         intent = self.detect_intent(user_query, normalized_order_id)
@@ -166,10 +168,26 @@ class SupportAgent:
             max_iterations=self.max_iterations,
         )
 
+        state.trace.append(
+            TraceEvent(
+                event_type=TraceEventType.TURN_STARTED,
+                iteration=0,
+                summary=f"Session: {session_id} | Intent: {intent}",
+                parameters={"session_id": session_id}
+            )
+        )
+
         # Check Privacy Keywords Handoff Rule
         query_lower = user_query.lower()
         if any(kw in query_lower for kw in self.PRIVACY_KEYWORDS):
             state.handoff_recommended = True
+            state.trace.append(
+                TraceEvent(
+                    event_type=TraceEventType.HANDOFF,
+                    iteration=0,
+                    summary="Handoff recommended due to privacy keywords in user query"
+                )
+            )
 
         # Bounded Planning & Observation Loop
         while state.iterations < state.max_iterations:
@@ -180,15 +198,52 @@ class SupportAgent:
                 action = self.planner.plan_next_action(state)
                 ActionValidator.validate(action)
             except Exception as e:
-                # Safe fallback if planner generates an invalid action or raises exception
+                # Safe fallback: PLANNER_FAILURE
                 action = AgentAction(
                     action_type=ActionType.HANDOFF,
                     reasoning=f"Planner validation/execution error fallback: {str(e)}"
                 )
+                obs = AgentObservation(
+                    action_type=ActionType.HANDOFF,
+                    success=False,
+                    result="Planner validation or execution failure fallback",
+                    error_message=f"Planner failure: {str(e)}",
+                    failure_category=FailureCategory.PLANNER_FAILURE,
+                    handoff_recommended=True,
+                )
+                state.observations.append(obs)
+
+            # Progress Protection: prevent repeated identical non-terminal actions
+            is_duplicate_non_terminal = False
+            for prior_action in state.planned_actions:
+                if (
+                    prior_action.action_type == action.action_type
+                    and prior_action.parameters == action.parameters
+                    and not ActionType.is_terminal(action.action_type)
+                ):
+                    is_duplicate_non_terminal = True
+                    break
+
+            if is_duplicate_non_terminal:
+                fallback_type = ActionType.RESPOND if (state.evidence_chunks or state.order_result) else ActionType.HANDOFF
+                action = AgentAction(
+                    action_type=fallback_type,
+                    reasoning="Progress protection triggered: Repeated identical non-terminal action proposed."
+                )
 
             state.planned_actions.append(action)
 
-            # ACTION EXECUTION 1: Clarification Action
+            state.trace.append(
+                TraceEvent(
+                    event_type=TraceEventType.ACTION_PLANNED,
+                    iteration=state.iterations,
+                    action_type=action.action_type,
+                    parameters=action.parameters,
+                    summary=f"Action planned: {action.action_type}"
+                )
+            )
+
+            # ACTION EXECUTION 1: Clarification Action (Terminal)
             if action.action_type == ActionType.CLARIFY:
                 state.final_answer = (
                     "Could you please provide your order ID (for example, ORD-1007) so I can check your order status?"
@@ -200,20 +255,81 @@ class SupportAgent:
                     result="Requested order ID clarification from user"
                 )
                 state.observations.append(obs)
+                state.trace.append(
+                    TraceEvent(
+                        event_type=TraceEventType.ACTION_EXECUTED,
+                        iteration=state.iterations,
+                        action_type=ActionType.CLARIFY,
+                        success=True,
+                        summary="Clarification requested from user for missing order ID"
+                    )
+                )
+                state.trace.append(
+                    TraceEvent(
+                        event_type=TraceEventType.OBSERVATION_RECORDED,
+                        iteration=state.iterations,
+                        action_type=ActionType.CLARIFY,
+                        success=True,
+                        summary="Recorded clarification observation"
+                    )
+                )
+                state.trace.append(
+                    TraceEvent(
+                        event_type=TraceEventType.TURN_COMPLETED,
+                        iteration=state.iterations,
+                        success=True,
+                        summary="Turn completed with clarification response"
+                    )
+                )
                 self.memory_store.add_turn(session_id, user_query, state.final_answer)
                 return state
 
-            # ACTION EXECUTION 2: Lookup Order Action
+            # ACTION EXECUTION 2: Lookup Order Action (Non-terminal)
             if action.action_type == ActionType.LOOKUP_ORDER:
                 raw_oid = action.parameters.get("order_id", "") or state.normalized_order_id or ""
                 target_oid = self.extract_order_id(raw_oid) or raw_oid.strip()
                 
-                order_res = self.execute_tool_safely("order_lookup", order_id=target_oid)
+                try:
+                    order_res = self.execute_tool_safely("order_lookup", order_id=target_oid)
+                except Exception as tool_err:
+                    state.handoff_recommended = True
+                    obs = AgentObservation(
+                        action_type=ActionType.LOOKUP_ORDER,
+                        success=False,
+                        result=None,
+                        error_message=f"Tool error: {str(tool_err)}",
+                        failure_category=FailureCategory.TOOL_ERROR,
+                        handoff_recommended=True,
+                    )
+                    state.observations.append(obs)
+                    state.trace.append(
+                        TraceEvent(
+                            event_type=TraceEventType.ACTION_EXECUTED,
+                            iteration=state.iterations,
+                            action_type=ActionType.LOOKUP_ORDER,
+                            success=False,
+                            error_message=f"Tool execution failed: {str(tool_err)}",
+                            summary="Order lookup tool raised an exception"
+                        )
+                    )
+                    state.trace.append(
+                        TraceEvent(
+                            event_type=TraceEventType.HANDOFF,
+                            iteration=state.iterations,
+                            action_type=ActionType.LOOKUP_ORDER,
+                            success=False,
+                            summary="Handoff recommended due to tool error"
+                        )
+                    )
+                    break
+
                 state.order_result = order_res
                 state.tool_calls_made.append("order_lookup")
 
+                failure_cat = None
                 if not order_res.found:
                     state.handoff_recommended = True
+                    failure_cat = FailureCategory.BUSINESS_FAILURE
 
                 # Retrieve policy context for order item details
                 state.evidence_chunks = self.vector_store.search(state.retrieval_query, top_k=2, filter_customer_eligible=True)
@@ -223,53 +339,145 @@ class SupportAgent:
                     success=order_res.found,
                     result=order_res,
                     error_message=order_res.error_message if not order_res.found else None,
+                    failure_category=failure_cat,
                     handoff_recommended=state.handoff_recommended,
                 )
                 state.observations.append(obs)
+
+                state.trace.append(
+                    TraceEvent(
+                        event_type=TraceEventType.ACTION_EXECUTED,
+                        iteration=state.iterations,
+                        action_type=ActionType.LOOKUP_ORDER,
+                        parameters={"order_id": target_oid},
+                        success=order_res.found,
+                        error_message=order_res.error_message if not order_res.found else None,
+                        summary=f"Order lookup executed for {target_oid}. Found={order_res.found}"
+                    )
+                )
+                state.trace.append(
+                    TraceEvent(
+                        event_type=TraceEventType.OBSERVATION_RECORDED,
+                        iteration=state.iterations,
+                        action_type=ActionType.LOOKUP_ORDER,
+                        success=order_res.found,
+                        error_message=order_res.error_message if not order_res.found else None,
+                        summary=f"Recorded order observation for {target_oid}"
+                    )
+                )
+                if not order_res.found:
+                    state.trace.append(
+                        TraceEvent(
+                            event_type=TraceEventType.HANDOFF,
+                            iteration=state.iterations,
+                            action_type=ActionType.LOOKUP_ORDER,
+                            success=False,
+                            summary="Handoff recommended due to unknown order ID"
+                        )
+                    )
                 continue
 
-            # ACTION EXECUTION 3: Retrieve KB Action
+            # ACTION EXECUTION 3: Retrieve KB Action (Non-terminal)
             if action.action_type == ActionType.RETRIEVE_KB:
                 search_q = action.parameters.get("query") or state.retrieval_query
                 state.evidence_chunks = self.vector_store.search(search_q, top_k=12, filter_customer_eligible=True)
                 
                 retrieved_filenames = {c.filename for c in state.evidence_chunks}
                 
+                failure_cat = None
                 # Handoff Rule A: Source conflict between active policies 11 and 12
                 if "11-product-care.md" in retrieved_filenames and "12-breeze-tumbler-product-card.md" in retrieved_filenames:
                     state.handoff_recommended = True
+                    failure_cat = FailureCategory.BUSINESS_FAILURE
                 
                 # Handoff Rule B: Insufficient info or no chunks returned
-                if not state.evidence_chunks or "vegan" in user_query.lower():
+                if not state.evidence_chunks:
                     state.handoff_recommended = True
+                    failure_cat = FailureCategory.RETRIEVAL_FAILURE
+                elif "vegan" in user_query.lower():
+                    state.handoff_recommended = True
+                    failure_cat = FailureCategory.BUSINESS_FAILURE
                 
                 # Handoff Rule C: Damaged / defective item exception requiring human review
                 if any(kw in query_lower for kw in ("damaged", "defective", "broken")):
                     state.handoff_recommended = True
+                    failure_cat = FailureCategory.BUSINESS_FAILURE
 
                 obs = AgentObservation(
                     action_type=ActionType.RETRIEVE_KB,
                     success=len(state.evidence_chunks) > 0,
                     result=state.evidence_chunks,
                     error_message="No evidence retrieved" if not state.evidence_chunks else None,
+                    failure_category=failure_cat,
                     handoff_recommended=state.handoff_recommended,
                 )
                 state.observations.append(obs)
+
+                state.trace.append(
+                    TraceEvent(
+                        event_type=TraceEventType.ACTION_EXECUTED,
+                        iteration=state.iterations,
+                        action_type=ActionType.RETRIEVE_KB,
+                        parameters={"query": search_q},
+                        success=len(state.evidence_chunks) > 0,
+                        summary=f"KB retrieval executed. Retrieved {len(state.evidence_chunks)} evidence chunks."
+                    )
+                )
+                state.trace.append(
+                    TraceEvent(
+                        event_type=TraceEventType.OBSERVATION_RECORDED,
+                        iteration=state.iterations,
+                        action_type=ActionType.RETRIEVE_KB,
+                        success=len(state.evidence_chunks) > 0,
+                        summary=f"Recorded retrieval observation with {len(state.evidence_chunks)} evidence chunks"
+                    )
+                )
+                if state.handoff_recommended:
+                    state.trace.append(
+                        TraceEvent(
+                            event_type=TraceEventType.HANDOFF,
+                            iteration=state.iterations,
+                            action_type=ActionType.RETRIEVE_KB,
+                            success=False,
+                            summary="Handoff recommended due to policy constraints or source conflict"
+                        )
+                    )
                 continue
 
-            # ACTION EXECUTION 4: Handoff Action
+            # ACTION EXECUTION 4: Handoff Action (Terminal)
             if action.action_type == ActionType.HANDOFF:
                 state.handoff_recommended = True
-                obs = AgentObservation(
-                    action_type=ActionType.HANDOFF,
-                    success=True,
-                    result="Handoff recommended to human support",
-                    handoff_recommended=True,
+                # Preserve existing failure observation if already recorded in exception handler
+                existing_obs = state.observations[-1] if state.observations else None
+                if not (existing_obs and existing_obs.action_type == ActionType.HANDOFF and existing_obs.failure_category == FailureCategory.PLANNER_FAILURE):
+                    obs = AgentObservation(
+                        action_type=ActionType.HANDOFF,
+                        success=True,
+                        result="Handoff recommended to human support",
+                        handoff_recommended=True,
+                    )
+                    state.observations.append(obs)
+                state.trace.append(
+                    TraceEvent(
+                        event_type=TraceEventType.ACTION_EXECUTED,
+                        iteration=state.iterations,
+                        action_type=ActionType.HANDOFF,
+                        success=True,
+                        summary="Handoff action executed"
+                    )
                 )
-                state.observations.append(obs)
+                state.trace.append(
+                    TraceEvent(
+                        event_type=TraceEventType.HANDOFF,
+                        iteration=state.iterations,
+                        action_type=ActionType.HANDOFF,
+                        success=True,
+                        summary="Handoff recommended to human support"
+                    )
+                )
                 break
 
-            # ACTION EXECUTION 5: Respond Action
+            # ACTION EXECUTION 5: Respond Action (Terminal)
             if action.action_type == ActionType.RESPOND:
                 obs = AgentObservation(
                     action_type=ActionType.RESPOND,
@@ -278,14 +486,48 @@ class SupportAgent:
                     handoff_recommended=state.handoff_recommended,
                 )
                 state.observations.append(obs)
+                state.trace.append(
+                    TraceEvent(
+                        event_type=TraceEventType.ACTION_EXECUTED,
+                        iteration=state.iterations,
+                        action_type=ActionType.RESPOND,
+                        success=True,
+                        summary="Proceeding to grounded response generation"
+                    )
+                )
                 break
 
-        # Safety Fallback if iteration limit reached without generating an answer
-        if state.iterations >= state.max_iterations and not state.final_answer and not state.evidence_chunks and not state.order_result:
-            state.handoff_recommended = True
-            state.final_answer = "I apologize, but I am unable to process your request at this time. Please contact customer support."
-            self.memory_store.add_turn(session_id, user_query, state.final_answer)
-            return state
+        # Safety Fallback: if loop ended via max_iterations without a terminal answer / observation
+        if not state.final_answer and state.iterations >= state.max_iterations:
+            has_terminal_obs = any(o.action_type in ActionType.TERMINAL_ACTIONS for o in state.observations)
+            if not has_terminal_obs:
+                state.handoff_recommended = True
+                state.observations.append(
+                    AgentObservation(
+                        action_type=ActionType.HANDOFF,
+                        success=False,
+                        result="Iteration limit exhausted without terminal action",
+                        error_message="Max iterations reached",
+                        handoff_recommended=True,
+                    )
+                )
+                state.trace.append(
+                    TraceEvent(
+                        event_type=TraceEventType.ITERATION_LIMIT_EXHAUSTED,
+                        iteration=state.iterations,
+                        success=False,
+                        error_message="Max iterations reached without terminal action",
+                        summary=f"Exhausted max_iterations={state.max_iterations}"
+                    )
+                )
+                state.trace.append(
+                    TraceEvent(
+                        event_type=TraceEventType.HANDOFF,
+                        iteration=state.iterations,
+                        success=False,
+                        summary="Handoff triggered due to iteration limit exhaustion"
+                    )
+                )
 
         # Format order data context if present
         order_data_context = None
@@ -312,4 +554,14 @@ class SupportAgent:
         # Save turn to session memory store with raw user_query
         self.memory_store.add_turn(session_id, user_query, state.final_answer)
 
+        state.trace.append(
+            TraceEvent(
+                event_type=TraceEventType.TURN_COMPLETED,
+                iteration=state.iterations,
+                success=True,
+                summary=f"Turn completed. Final answer generated. Handoff={state.handoff_recommended}"
+            )
+        )
+
         return state
+
