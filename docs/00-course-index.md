@@ -41,6 +41,7 @@ This repository serves as both a production implementation and a self-contained 
 22. **[22-agent-security-and-control.md](file:///c:/Users/HP/OneDrive/Desktop/ai-intern-test/ai-agent-intern-test/docs/22-agent-security-and-control.md)**: Defense-in-depth security matrix, mapping theoretical agent concepts to `src/` codebase implementation, Data-Instruction separation, PII sanitization, non-executable reasoning.
 23. **[23-day3-architecture.md](file:///c:/Users/HP/OneDrive/Desktop/ai-intern-test/ai-agent-intern-test/docs/23-day3-architecture.md)**: Complete Day 3 ASCII system architecture diagram, Day 1 $\rightarrow$ Day 3 architecture evolution, complete codebase file map (`src/` and `tests/`).
 24. **[24-day3-interview-revision.md](file:///c:/Users/HP/OneDrive/Desktop/ai-intern-test/ai-agent-intern-test/docs/24-day3-interview-revision.md)**: 30-second Day 3 elevator pitch, Stanford CME295 (Lecture 7) concept mapping matrix, rapid Q&A cheat sheet.
+25. **[25-day3-agent-control-loop-revision.md](file:///c:/Users/HP/OneDrive/Desktop/ai-intern-test/ai-agent-intern-test/docs/25-day3-agent-control-loop-revision.md)**: Day 3 final mental model (Memory vs Context vs Retrieval Query, Agent vs LLM, ReAct Loop, Bounded Loops, Failure Taxonomy, Trace vs Memory, Deterministic vs Semantic Eval).
 
 ---
 
