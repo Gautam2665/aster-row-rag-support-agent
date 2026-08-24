@@ -2,7 +2,7 @@ import json
 import os
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union
 
 from src.agent import SupportAgent, AgentState
 from src.retrieval import KBVectorStore
@@ -41,19 +41,26 @@ class CaseEvalReport:
 
 class EvaluationRunner:
     """
-    Evaluation runner for Aster & Row support agent visible evaluation cases.
-    Evaluates state machine transitions, tool calls, metadata filtering, privacy,
-    and supports optional live LLM semantic response verification.
+    Data-driven evaluation runner for Aster & Row support agent visible and custom evaluation cases.
+    Evaluates state machine transitions, tool calls, metadata filtering, privacy, session isolation,
+    failure recovery policies, and supports optional live LLM semantic response verification.
     """
 
     def __init__(
         self,
-        cases_json_path: Optional[Path] = None,
+        cases_json_path: Optional[Union[Path, str, List[Union[Path, str]]]] = None,
         agent: Optional[SupportAgent] = None,
         use_live_llm: bool = False,
     ):
-        self.cases_json_path = cases_json_path or Path("evaluation/visible-cases.json")
+        if cases_json_path is None:
+            self.cases_json_paths = [Path("evaluation/visible-cases.json")]
+        elif isinstance(cases_json_path, (list, tuple)):
+            self.cases_json_paths = [Path(p) for p in cases_json_path]
+        else:
+            self.cases_json_paths = [Path(cases_json_path)]
+
         self.use_live_llm = use_live_llm
+
         if agent:
             self.agent = agent
         else:
@@ -77,209 +84,247 @@ class EvaluationRunner:
             )
 
     def load_cases(self) -> List[Dict[str, Any]]:
-        if not self.cases_json_path.exists():
-            raise FileNotFoundError(f"Evaluation cases file not found: {self.cases_json_path}")
-        content = self.cases_json_path.read_text(encoding="utf-8")
-        data = json.loads(content)
-        return data.get("cases", [])
+        all_cases = []
+        for path in self.cases_json_paths:
+            if not path.exists():
+                raise FileNotFoundError(f"Evaluation cases file not found: {path}")
+            content = path.read_text(encoding="utf-8")
+            data = json.loads(content)
+            all_cases.extend(data.get("cases", []))
+        return all_cases
 
     def evaluate_case(self, case_dict: Dict[str, Any]) -> CaseEvalReport:
         case_id = case_dict["id"]
         category = case_dict["category"]
         messages = case_dict["messages"]
         expect = case_dict.get("expect", {})
+        planner_type = case_dict.get("planner_type")
 
-        user_inputs = [m["content"] for m in messages if m.get("role") == "user"]
-        
-        # Execute conversation turns through agent state machine
-        state: Optional[AgentState] = None
-        session_id = f"eval_{case_id}"
-        
-        for user_input in user_inputs:
-            state = self.agent.process_turn(user_query=user_input, session_id=session_id)
+        # Handle optional generic planner_type override
+        original_planner = self.agent.planner
+        if planner_type == "invalid_action":
+            from src.planner import BasePlanner, AgentAction
+            class InvalidActionPlanner(BasePlanner):
+                def plan_next_action(self, state: AgentState) -> AgentAction:
+                    return AgentAction(action_type="UNAUTHORIZED_EXPLOIT_ACTION", parameters={"hack": True})
+            self.agent.planner = InvalidActionPlanner()
 
-        assertions: List[CaseAssertionResult] = []
-        is_mock_llm = isinstance(self.agent.llm_provider, MockLLMProvider)
+        try:
+            user_inputs: List[str] = []
+            state: Optional[AgentState] = None
+            default_session_id = f"eval_{case_id}"
 
-        # 1. Evaluate Tool Usage
-        expected_tool = expect.get("tool")
-        if expected_tool:
-            if expected_tool in ("not_called", "not_called_without_id"):
-                tool_passed = len(state.tool_calls_made) == 0
+            for m in messages:
+                if m.get("role") == "user":
+                    user_content = m["content"]
+                    user_inputs.append(user_content)
+                    session_id = m.get("session_id", default_session_id)
+                    state = self.agent.process_turn(user_query=user_content, session_id=session_id)
+
+            assertions: List[CaseAssertionResult] = []
+            is_mock_llm = isinstance(self.agent.llm_provider, MockLLMProvider)
+
+            # 1. Evaluate Tool Usage
+            expected_tool = expect.get("tool")
+            if expected_tool:
+                if expected_tool in ("not_called", "not_called_without_id"):
+                    tool_passed = len(state.tool_calls_made) == 0
+                    assertions.append(
+                        CaseAssertionResult(
+                            name="tool_execution_check",
+                            category="tool",
+                            passed=tool_passed,
+                            status="PASS" if tool_passed else "FAIL",
+                            detail=f"Expected zero tool calls. Actual tool calls: {state.tool_calls_made}",
+                        )
+                    )
+                elif expected_tool == "order_lookup":
+                    tool_passed = "order_lookup" in state.tool_calls_made and state.order_result is not None
+                    assertions.append(
+                        CaseAssertionResult(
+                            name="tool_execution_check",
+                            category="tool",
+                            passed=tool_passed,
+                            status="PASS" if tool_passed else "FAIL",
+                            detail=f"Expected 'order_lookup' tool call. Actual: {state.tool_calls_made}",
+                        )
+                    )
+                elif expected_tool == "optional_sanitized_lookup":
+                    tool_passed = True
+                    if "order_lookup" in state.tool_calls_made:
+                        tool_passed = state.order_result is not None
+                    assertions.append(
+                        CaseAssertionResult(
+                            name="tool_execution_check",
+                            category="tool",
+                            passed=tool_passed,
+                            status="PASS" if tool_passed else "FAIL",
+                            detail="Optional sanitized lookup verified.",
+                        )
+                    )
+
+            # 2. Evaluate Required Sources
+            req_sources = expect.get("required_sources", [])
+            if req_sources is not None and "required_sources" in expect:
+                retrieved_filenames = {c.split(" > ")[0] for c in state.citations}
+                sources_passed = all(src in retrieved_filenames for src in req_sources)
                 assertions.append(
                     CaseAssertionResult(
-                        name="tool_execution_check",
-                        category="tool",
-                        passed=tool_passed,
-                        status="PASS" if tool_passed else "FAIL",
-                        detail=f"Expected zero tool calls. Actual tool calls: {state.tool_calls_made}",
+                        name="required_sources_check",
+                        category="retrieval",
+                        passed=sources_passed,
+                        status="PASS" if sources_passed else "FAIL",
+                        detail=f"Required sources: {req_sources}. Actual citations: {list(retrieved_filenames)}",
                     )
                 )
-            elif expected_tool == "order_lookup":
-                tool_passed = "order_lookup" in state.tool_calls_made and state.order_result is not None
+
+            # 3. Evaluate Forbidden Sources
+            forb_sources = expect.get("forbidden_sources_as_authority", [])
+            if forb_sources:
+                retrieved_filenames = {c.split(" > ")[0] for c in state.citations}
+                forbidden_passed = not any(src in retrieved_filenames for src in forb_sources)
                 assertions.append(
                     CaseAssertionResult(
-                        name="tool_execution_check",
-                        category="tool",
-                        passed=tool_passed,
-                        status="PASS" if tool_passed else "FAIL",
-                        detail=f"Expected 'order_lookup' tool call. Actual: {state.tool_calls_made}",
+                        name="forbidden_sources_check",
+                        category="retrieval",
+                        passed=forbidden_passed,
+                        status="PASS" if forbidden_passed else "FAIL",
+                        detail=f"Forbidden sources: {forb_sources}. Actual citations: {list(retrieved_filenames)}",
                     )
                 )
-            elif expected_tool == "optional_sanitized_lookup":
-                tool_passed = True
-                if "order_lookup" in state.tool_calls_made:
-                    tool_passed = state.order_result is not None
+
+            # 4. Evaluate Handoff Expectation
+            if "handoff" in expect:
+                expected_handoff = expect["handoff"]
+                handoff_passed = state.handoff_recommended == expected_handoff
                 assertions.append(
                     CaseAssertionResult(
-                        name="tool_execution_check",
-                        category="tool",
-                        passed=tool_passed,
-                        status="PASS" if tool_passed else "FAIL",
-                        detail="Optional sanitized lookup verified.",
+                        name="handoff_recommendation_check",
+                        category="handoff",
+                        passed=handoff_passed,
+                        status="PASS" if handoff_passed else "FAIL",
+                        detail=f"Expected handoff={expected_handoff}. Actual handoff_recommended={state.handoff_recommended}",
                     )
                 )
 
-        # 2. Evaluate Required Sources
-        req_sources = expect.get("required_sources", [])
-        if req_sources:
-            retrieved_filenames = {c.split(" > ")[0] for c in state.citations}
-            sources_passed = all(src in retrieved_filenames for src in req_sources)
-            assertions.append(
-                CaseAssertionResult(
-                    name="required_sources_check",
-                    category="retrieval",
-                    passed=sources_passed,
-                    status="PASS" if sources_passed else "FAIL",
-                    detail=f"Required sources: {req_sources}. Actual citations: {list(retrieved_filenames)}",
-                )
-            )
-
-        # 3. Evaluate Forbidden Sources
-        forb_sources = expect.get("forbidden_sources_as_authority", [])
-        if forb_sources:
-            retrieved_filenames = {c.split(" > ")[0] for c in state.citations}
-            forbidden_passed = not any(src in retrieved_filenames for src in forb_sources)
-            assertions.append(
-                CaseAssertionResult(
-                    name="forbidden_sources_check",
-                    category="retrieval",
-                    passed=forbidden_passed,
-                    status="PASS" if forbidden_passed else "FAIL",
-                    detail=f"Forbidden sources: {forb_sources}. Actual citations: {list(retrieved_filenames)}",
-                )
-            )
-
-        # 4. Evaluate Handoff Expectation
-        if "handoff" in expect:
-            expected_handoff = expect["handoff"]
-            handoff_passed = state.handoff_recommended == expected_handoff
-            assertions.append(
-                CaseAssertionResult(
-                    name="handoff_recommendation_check",
-                    category="handoff",
-                    passed=handoff_passed,
-                    status="PASS" if handoff_passed else "FAIL",
-                    detail=f"Expected handoff={expected_handoff}. Actual handoff_recommended={state.handoff_recommended}",
-                )
-            )
-
-        # 5. Evaluate Refuse to Disclose PII / Privacy Rules
-        must_refuse = expect.get("must_refuse_to_disclose", [])
-        if must_refuse:
-            privacy_passed = True
-            if state.order_result:
-                order_dict = state.order_result.to_dict()
-                privacy_passed = not any(k in order_dict for k in ("customer", "internal", "email", "address", "risk_score"))
-            assertions.append(
-                CaseAssertionResult(
-                    name="privacy_pii_sanitization_check",
-                    category="privacy",
-                    passed=privacy_passed,
-                    status="PASS" if privacy_passed else "FAIL",
-                    detail=f"PII fields stripped / tool execution refused: {privacy_passed}",
-                )
-            )
-
-        # 6. Evaluate Semantic Concepts (must_include, must_not_include)
-        semantic_keys = ["must_include", "must_not_include", "must_include_concepts", "must_ask_for", "must_not_invent"]
-        has_semantic_expectations = any(k in expect for k in semantic_keys)
-
-        if has_semantic_expectations:
-            if is_mock_llm:
+            # 5. Evaluate Expected Failure Category
+            exp_fail_cat = expect.get("expected_failure_category")
+            if exp_fail_cat:
+                actual_cats = [obs.failure_category for obs in state.observations if obs.failure_category]
+                fail_cat_passed = exp_fail_cat in actual_cats
                 assertions.append(
                     CaseAssertionResult(
-                        name="semantic_llm_generation_check",
-                        category="grounding",
-                        passed=True,
-                        status="UNVERIFIED_REQUIRES_LLM",
-                        detail="Final semantic prose generation requires live LLM evaluation; deterministic state verified.",
+                        name="failure_category_check",
+                        category="orchestration",
+                        passed=fail_cat_passed,
+                        status="PASS" if fail_cat_passed else "FAIL",
+                        detail=f"Expected failure_category={exp_fail_cat}. Actual categories: {actual_cats}",
                     )
                 )
-            else:
+
+            # 6. Evaluate Refuse to Disclose PII / Privacy Rules
+            must_refuse = expect.get("must_refuse_to_disclose", [])
+            if must_refuse:
+                privacy_passed = True
+                if state.order_result:
+                    order_dict = state.order_result.to_dict()
+                    privacy_passed = not any(k in order_dict for k in ("customer", "internal", "email", "address", "risk_score"))
                 answer_lower = (state.final_answer or "").lower()
-                concepts_passed = True
-                fail_details = []
-
-                if "must_include" in expect:
-                    for inc in expect["must_include"]:
-                        if inc.lower() not in answer_lower:
-                            concepts_passed = False
-                            fail_details.append(f"Missing required phrase: '{inc}'")
-
-                if "must_not_include" in expect:
-                    for exc in expect["must_not_include"]:
-                        if exc.lower() in answer_lower:
-                            concepts_passed = False
-                            fail_details.append(f"Forbidden phrase found: '{exc}'")
-
+                if privacy_passed:
+                    for ref_item in must_refuse:
+                        if ref_item.lower() in answer_lower and ref_item.lower() not in ("warehouse_note", "risk_score", "email", "address"):
+                            privacy_passed = False
                 assertions.append(
                     CaseAssertionResult(
-                        name="semantic_llm_generation_check",
-                        category="grounding",
-                        passed=concepts_passed,
-                        status="PASS" if concepts_passed else "FAIL",
-                        detail="Evaluated text against semantic expectations. " + ("; ".join(fail_details) if fail_details else "All semantic requirements met."),
+                        name="privacy_pii_sanitization_check",
+                        category="privacy",
+                        passed=privacy_passed,
+                        status="PASS" if privacy_passed else "FAIL",
+                        detail=f"PII fields stripped / tool execution refused: {privacy_passed}",
                     )
                 )
 
-        # Separate deterministic state status vs live LLM status vs overall status
-        deterministic_assertions = [a for a in assertions if a.name != "semantic_llm_generation_check"]
-        semantic_assertion = next((a for a in assertions if a.name == "semantic_llm_generation_check"), None)
+            # 7. Evaluate Semantic Concepts (must_include, must_not_include)
+            semantic_keys = ["must_include", "must_not_include", "must_include_concepts", "must_ask_for", "must_not_invent"]
+            has_semantic_expectations = any(k in expect for k in semantic_keys)
 
-        det_passed = all(a.status == "PASS" for a in deterministic_assertions)
-        deterministic_status = "PASS" if det_passed else "FAIL"
+            if has_semantic_expectations:
+                if is_mock_llm:
+                    assertions.append(
+                        CaseAssertionResult(
+                            name="semantic_llm_generation_check",
+                            category="grounding",
+                            passed=True,
+                            status="UNVERIFIED_REQUIRES_LLM",
+                            detail="Final semantic prose generation requires live LLM evaluation; deterministic state verified.",
+                        )
+                    )
+                else:
+                    answer_lower = (state.final_answer or "").lower()
+                    concepts_passed = True
+                    fail_details = []
 
-        if is_mock_llm:
-            live_llm_status = "UNAVAILABLE"
-        elif semantic_assertion:
-            live_llm_status = "PASS" if semantic_assertion.status == "PASS" else "FAIL"
-        else:
-            live_llm_status = "PASS"
+                    if "must_include" in expect:
+                        for inc in expect["must_include"]:
+                            if inc.lower() not in answer_lower:
+                                concepts_passed = False
+                                fail_details.append(f"Missing required phrase: '{inc}'")
 
-        if not det_passed:
-            overall = "FAIL"
-        elif is_mock_llm:
-            overall = "UNVERIFIED_REQUIRES_LLM"
-        elif live_llm_status == "FAIL":
-            overall = "FAIL"
-        else:
-            overall = "PASS"
+                    if "must_not_include" in expect:
+                        for exc in expect["must_not_include"]:
+                            if exc.lower() in answer_lower:
+                                concepts_passed = False
+                                fail_details.append(f"Forbidden phrase found: '{exc}'")
 
-        return CaseEvalReport(
-            case_id=case_id,
-            category=category,
-            user_inputs=user_inputs,
-            detected_intent=state.intent_category,
-            tool_calls_made=state.tool_calls_made,
-            retrieved_sources=state.citations,
-            handoff_recommended=state.handoff_recommended,
-            final_answer=state.final_answer,
-            assertions=assertions,
-            deterministic_status=deterministic_status,
-            live_llm_status=live_llm_status,
-            overall_status=overall,
-        )
+                    assertions.append(
+                        CaseAssertionResult(
+                            name="semantic_llm_generation_check",
+                            category="grounding",
+                            passed=concepts_passed,
+                            status="PASS" if concepts_passed else "FAIL",
+                            detail="Evaluated text against semantic expectations. " + ("; ".join(fail_details) if fail_details else "All semantic requirements met."),
+                        )
+                    )
+
+            # Separate deterministic state status vs live LLM status vs overall status
+            deterministic_assertions = [a for a in assertions if a.name != "semantic_llm_generation_check"]
+            semantic_assertion = next((a for a in assertions if a.name == "semantic_llm_generation_check"), None)
+
+            det_passed = all(a.status == "PASS" for a in deterministic_assertions)
+            deterministic_status = "PASS" if det_passed else "FAIL"
+
+            if is_mock_llm:
+                live_llm_status = "UNAVAILABLE"
+            elif semantic_assertion:
+                live_llm_status = "PASS" if semantic_assertion.status == "PASS" else "FAIL"
+            else:
+                live_llm_status = "PASS"
+
+            if not det_passed:
+                overall = "FAIL"
+            elif is_mock_llm:
+                overall = "UNVERIFIED_REQUIRES_LLM"
+            elif live_llm_status == "FAIL":
+                overall = "FAIL"
+            else:
+                overall = "PASS"
+
+            return CaseEvalReport(
+                case_id=case_id,
+                category=category,
+                user_inputs=user_inputs,
+                detected_intent=state.intent_category,
+                tool_calls_made=state.tool_calls_made,
+                retrieved_sources=state.citations,
+                handoff_recommended=state.handoff_recommended,
+                final_answer=state.final_answer,
+                assertions=assertions,
+                deterministic_status=deterministic_status,
+                live_llm_status=live_llm_status,
+                overall_status=overall,
+            )
+        finally:
+            self.agent.planner = original_planner
 
     def run_all(self, output_report_path: Optional[Path] = None) -> List[CaseEvalReport]:
         cases = self.load_cases()
@@ -301,13 +346,13 @@ class EvaluationRunner:
 
     def print_terminal_summary(self, reports: List[CaseEvalReport]):
         print("\n" + "=" * 105)
-        print(f"VISIBLE EVALUATION CASES REPORT (Total: {len(reports)})")
+        print(f"EVALUATION CASES REPORT (Total: {len(reports)})")
         print("=" * 105)
-        print(f"{'Case ID':<30} | {'Category':<20} | {'Intent':<12} | {'State':<8} | {'Live LLM':<12} | {'Overall'}")
+        print(f"{'Case ID':<34} | {'Category':<18} | {'Intent':<12} | {'State':<8} | {'Live LLM':<12} | {'Overall'}")
         print("-" * 105)
 
         for r in reports:
-            print(f"{r.case_id:<30} | {r.category:<20} | {r.detected_intent:<12} | {r.deterministic_status:<8} | {r.live_llm_status:<12} | {r.overall_status}")
+            print(f"{r.case_id:<34} | {r.category:<18} | {r.detected_intent:<12} | {r.deterministic_status:<8} | {r.live_llm_status:<12} | {r.overall_status}")
 
         passed = sum(1 for r in reports if r.overall_status == "PASS")
         unverified = sum(1 for r in reports if r.overall_status == "UNVERIFIED_REQUIRES_LLM")

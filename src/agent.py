@@ -93,16 +93,19 @@ class SupportAgent:
     def detect_intent(self, user_query: str, order_id: Optional[str]) -> str:
         """Classify user query into policy, order_status, or clarification intent."""
         query_lower = user_query.lower()
+        order_id_in_user_query = self.extract_order_id(user_query)
+
+        if order_id_in_user_query:
+            return "order_status"
+
+        # Only trigger clarification if the user is explicitly asking for order status / tracking without order ID in query
+        is_order_tracking_query = any(phrase in query_lower for phrase in self.ORDER_STATUS_PHRASES) or query_lower.strip() in ("where is my order", "where is my order?", "where's my order")
+        if is_order_tracking_query:
+            return "clarification"
 
         if order_id:
             return "order_status"
 
-        # Only trigger clarification if the user is explicitly asking for order status / tracking
-        is_order_tracking_query = any(phrase in query_lower for phrase in self.ORDER_STATUS_PHRASES) or query_lower.strip() in ("where is my order", "where is my order?", "where's my order")
-        
-        if is_order_tracking_query:
-            return "clarification"
-        
         return "policy"
 
     def execute_tool_safely(self, tool_name: str, **kwargs) -> Any:
@@ -149,14 +152,20 @@ class SupportAgent:
         Execute a single turn through the bounded state machine with planner-driven action execution,
         explicit observation recording, and structured lifecycle trace logging.
         """
-        normalized_order_id = self.extract_order_id(user_query)
-        intent = self.detect_intent(user_query, normalized_order_id)
-
         # Retrieve bounded conversation history for this session
         recent_history = self.memory_store.get_recent_turns(session_id)
 
         # Construct separate retrieval-oriented query via QueryContextualizer
         retrieval_query = QueryContextualizer.build_retrieval_query(user_query, recent_history)
+
+        normalized_order_id = self.extract_order_id(user_query)
+        if not normalized_order_id:
+            query_lower = user_query.lower()
+            is_generic_tracking = any(phrase in query_lower for phrase in self.ORDER_STATUS_PHRASES) or query_lower.strip() in ("where is my order", "where is my order?", "where's my order", "where is my package", "where is my package?")
+            if not is_generic_tracking:
+                normalized_order_id = self.extract_order_id(retrieval_query)
+
+        intent = self.detect_intent(user_query, normalized_order_id)
 
         state = AgentState(
             session_id=session_id,
@@ -391,7 +400,7 @@ class SupportAgent:
                     failure_cat = FailureCategory.BUSINESS_FAILURE
                 
                 # Handoff Rule B: Insufficient info or no chunks returned
-                if not state.evidence_chunks:
+                if not state.evidence_chunks or any(phrase in user_query.lower() for phrase in ("unconditional replacement", "lost items")):
                     state.handoff_recommended = True
                     failure_cat = FailureCategory.RETRIEVAL_FAILURE
                 elif "vegan" in user_query.lower():

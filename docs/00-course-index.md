@@ -45,6 +45,12 @@ This repository serves as both a production implementation and a self-contained 
 
 ---
 
+## Day 4 Study Curriculum
+
+26. **[26-day4-evaluation-and-engineering-revision.md](file:///c:/Users/HP/OneDrive/Desktop/ai-intern-test/ai-agent-intern-test/docs/26-day4-evaluation-and-engineering-revision.md)**: Evaluation-Driven Development (EDD), deterministic vs semantic evaluation, scenario-based testing, regression suites, failure recovery, observability vs memory, and interview revision sheet.
+
+---
+
 ## Architectural Decision Records (ADR)
 
 * **[decisions/001-rag-foundation.md](file:///c:/Users/HP/OneDrive/Desktop/ai-intern-test/ai-agent-intern-test/docs/decisions/001-rag-foundation.md)**: RAG Foundation Architecture — Lightweight Python components + local ChromaDB vs LangChain / LangGraph frameworks.

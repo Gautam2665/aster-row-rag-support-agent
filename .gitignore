@@ -10,10 +10,22 @@ __pycache__/
 # Pytest / Coverage
 .pytest_cache/
 .coverage
+htmlcov/
 
 # Virtual Environment
 venv/
 .venv/
+env/
 
-# Brain / Antigravity artifacts
+# IDE & Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs & Local Vector DB cache
+*.log
+.chroma/
+
+# Antigravity artifacts
 .gemini/

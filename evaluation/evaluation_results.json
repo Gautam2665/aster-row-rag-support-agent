@@ -41,14 +41,14 @@
           "category": "retrieval",
           "passed": true,
           "status": "PASS",
-          "detail": "Required sources: ['01-returns-policy-current.md']. Actual citations: ['07-warranty.md', '03-final-sale-and-promotions.md', '04-damaged-or-wrong-items.md', '01-returns-policy-current.md', '09-trailplus-membership.md', '05-domestic-shipping.md']"
+          "detail": "Required sources: ['01-returns-policy-current.md']. Actual citations: ['04-damaged-or-wrong-items.md', '01-returns-policy-current.md', '05-domestic-shipping.md', '07-warranty.md', '03-final-sale-and-promotions.md', '09-trailplus-membership.md']"
         },
         {
           "name": "forbidden_sources_check",
           "category": "retrieval",
           "passed": true,
           "status": "PASS",
-          "detail": "Forbidden sources: ['02-returns-policy-legacy.md', '14-internal-content-migration-notes.md']. Actual citations: ['07-warranty.md', '03-final-sale-and-promotions.md', '04-damaged-or-wrong-items.md', '01-returns-policy-current.md', '09-trailplus-membership.md', '05-domestic-shipping.md']"
+          "detail": "Forbidden sources: ['02-returns-policy-legacy.md', '14-internal-content-migration-notes.md']. Actual citations: ['04-damaged-or-wrong-items.md', '01-returns-policy-current.md', '05-domestic-shipping.md', '07-warranty.md', '03-final-sale-and-promotions.md', '09-trailplus-membership.md']"
         },
         {
           "name": "handoff_recommendation_check",
@@ -106,7 +106,7 @@
           "category": "retrieval",
           "passed": true,
           "status": "PASS",
-          "detail": "Required sources: ['09-trailplus-membership.md']. Actual citations: ['03-final-sale-and-promotions.md', '04-damaged-or-wrong-items.md', '01-returns-policy-current.md', '09-trailplus-membership.md', '08-order-changes-and-cancellations.md', '06-international-shipping.md', '05-domestic-shipping.md']"
+          "detail": "Required sources: ['09-trailplus-membership.md']. Actual citations: ['04-damaged-or-wrong-items.md', '01-returns-policy-current.md', '05-domestic-shipping.md', '06-international-shipping.md', '03-final-sale-and-promotions.md', '08-order-changes-and-cancellations.md', '09-trailplus-membership.md']"
         },
         {
           "name": "handoff_recommendation_check",
@@ -164,7 +164,7 @@
           "category": "retrieval",
           "passed": true,
           "status": "PASS",
-          "detail": "Required sources: ['03-final-sale-and-promotions.md', '04-damaged-or-wrong-items.md']. Actual citations: ['11-product-care.md', '03-final-sale-and-promotions.md', '07-warranty.md', '04-damaged-or-wrong-items.md', '01-returns-policy-current.md']"
+          "detail": "Required sources: ['03-final-sale-and-promotions.md', '04-damaged-or-wrong-items.md']. Actual citations: ['04-damaged-or-wrong-items.md', '11-product-care.md', '01-returns-policy-current.md', '07-warranty.md', '03-final-sale-and-promotions.md']"
         },
         {
           "name": "handoff_recommendation_check",
@@ -223,7 +223,7 @@
           "category": "retrieval",
           "passed": true,
           "status": "PASS",
-          "detail": "Required sources: ['06-international-shipping.md']. Actual citations: ['01-returns-policy-current.md', '09-trailplus-membership.md', '08-order-changes-and-cancellations.md', '06-international-shipping.md', '05-domestic-shipping.md']"
+          "detail": "Required sources: ['06-international-shipping.md']. Actual citations: ['01-returns-policy-current.md', '05-domestic-shipping.md', '06-international-shipping.md', '08-order-changes-and-cancellations.md', '09-trailplus-membership.md']"
         },
         {
           "name": "handoff_recommendation_check",
@@ -281,7 +281,7 @@
           "category": "retrieval",
           "passed": true,
           "status": "PASS",
-          "detail": "Required sources: ['06-international-shipping.md']. Actual citations: ['03-final-sale-and-promotions.md', '04-damaged-or-wrong-items.md', '09-trailplus-membership.md', '08-order-changes-and-cancellations.md', '06-international-shipping.md', '05-domestic-shipping.md']"
+          "detail": "Required sources: ['06-international-shipping.md']. Actual citations: ['04-damaged-or-wrong-items.md', '05-domestic-shipping.md', '06-international-shipping.md', '03-final-sale-and-promotions.md', '08-order-changes-and-cancellations.md', '09-trailplus-membership.md']"
         },
         {
           "name": "handoff_recommendation_check",
@@ -594,7 +594,7 @@
           "category": "retrieval",
           "passed": true,
           "status": "PASS",
-          "detail": "Required sources: ['07-warranty.md']. Actual citations: ['10-gift-cards-and-price-adjustments.md', '11-product-care.md', '07-warranty.md', '04-damaged-or-wrong-items.md', '01-returns-policy-current.md', '06-international-shipping.md']"
+          "detail": "Required sources: ['07-warranty.md']. Actual citations: ['10-gift-cards-and-price-adjustments.md', '04-damaged-or-wrong-items.md', '11-product-care.md', '01-returns-policy-current.md', '06-international-shipping.md', '07-warranty.md']"
         },
         {
           "name": "handoff_recommendation_check",
@@ -652,7 +652,7 @@
           "category": "retrieval",
           "passed": true,
           "status": "PASS",
-          "detail": "Required sources: ['01-returns-policy-current.md']. Actual citations: ['03-final-sale-and-promotions.md', '07-warranty.md', '11-product-care.md', '04-damaged-or-wrong-items.md', '01-returns-policy-current.md', '09-trailplus-membership.md', '08-order-changes-and-cancellations.md']"
+          "detail": "Required sources: ['01-returns-policy-current.md']. Actual citations: ['04-damaged-or-wrong-items.md', '11-product-care.md', '01-returns-policy-current.md', '07-warranty.md', '03-final-sale-and-promotions.md', '08-order-changes-and-cancellations.md', '09-trailplus-membership.md']"
         },
         {
           "name": "handoff_recommendation_check",
@@ -761,7 +761,7 @@
           "category": "retrieval",
           "passed": true,
           "status": "PASS",
-          "detail": "Required sources: ['11-product-care.md', '12-breeze-tumbler-product-card.md']. Actual citations: ['11-product-care.md', '07-warranty.md', '01-returns-policy-current.md', '12-breeze-tumbler-product-card.md']"
+          "detail": "Required sources: ['11-product-care.md', '12-breeze-tumbler-product-card.md']. Actual citations: ['12-breeze-tumbler-product-card.md', '11-product-care.md', '07-warranty.md', '01-returns-policy-current.md']"
         },
         {
           "name": "handoff_recommendation_check",
