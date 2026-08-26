@@ -14,6 +14,8 @@ from src.context import ContextBuilder
 from src.query_context import QueryContextualizer
 from src.planner import BasePlanner, MockPlanner, AgentAction, AgentObservation, ActionType, ActionValidator, FailureCategory
 from src.trace import TraceEvent, TraceEventType
+from src.retrieval_trace import RetrievalDiagnostic
+from src.retrieval_policy import evaluate_retrieval_sufficiency
 
 
 @dataclass
@@ -35,6 +37,7 @@ class AgentState:
     planned_actions: List[AgentAction] = field(default_factory=list)
     observations: List[AgentObservation] = field(default_factory=list)
     trace: List[TraceEvent] = field(default_factory=list)
+    retrieval_diagnostics: List[RetrievalDiagnostic] = field(default_factory=list)
     
     # Bounded Loop Control
     iterations: int = 0
@@ -389,20 +392,22 @@ class SupportAgent:
             # ACTION EXECUTION 3: Retrieve KB Action (Non-terminal)
             if action.action_type == ActionType.RETRIEVE_KB:
                 search_q = action.parameters.get("query") or state.retrieval_query
-                state.evidence_chunks = self.vector_store.search(search_q, top_k=12, filter_customer_eligible=True)
+                state.evidence_chunks, diagnostic = self.vector_store.search_with_diagnostics(
+                    search_q, top_k=12, filter_customer_eligible=True
+                )
                 
+                sufficiency = evaluate_retrieval_sufficiency(state.evidence_chunks, diagnostic, user_query)
                 retrieved_filenames = {c.filename for c in state.evidence_chunks}
                 
                 failure_cat = None
+                if not sufficiency.sufficient:
+                    state.handoff_recommended = True
+                    failure_cat = FailureCategory.RETRIEVAL_FAILURE
+
                 # Handoff Rule A: Source conflict between active policies 11 and 12
                 if "11-product-care.md" in retrieved_filenames and "12-breeze-tumbler-product-card.md" in retrieved_filenames:
                     state.handoff_recommended = True
                     failure_cat = FailureCategory.BUSINESS_FAILURE
-                
-                # Handoff Rule B: Insufficient info or no chunks returned
-                if not state.evidence_chunks or any(phrase in user_query.lower() for phrase in ("unconditional replacement", "lost items")):
-                    state.handoff_recommended = True
-                    failure_cat = FailureCategory.RETRIEVAL_FAILURE
                 elif "vegan" in user_query.lower():
                     state.handoff_recommended = True
                     failure_cat = FailureCategory.BUSINESS_FAILURE
@@ -411,6 +416,10 @@ class SupportAgent:
                 if any(kw in query_lower for kw in ("damaged", "defective", "broken")):
                     state.handoff_recommended = True
                     failure_cat = FailureCategory.BUSINESS_FAILURE
+
+                if failure_cat:
+                    diagnostic.failure_classification = failure_cat.value if hasattr(failure_cat, "value") else str(failure_cat)
+                state.retrieval_diagnostics.append(diagnostic)
 
                 obs = AgentObservation(
                     action_type=ActionType.RETRIEVE_KB,

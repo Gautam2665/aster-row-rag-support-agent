@@ -1,10 +1,11 @@
 import os
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Tuple
 import chromadb
 from chromadb.config import Settings
 
 from src.models import KBChunk, DocumentMetadata
 from src.embeddings import EmbeddingProvider
+from src.retrieval_trace import RetrievalDiagnostic
 
 
 class KBVectorStore:
@@ -79,16 +80,15 @@ class KBVectorStore:
         )
         return len(chunks)
 
-    def search(
+    def search_with_diagnostics(
         self,
         query: str,
         top_k: int = 10,
         filter_customer_eligible: bool = True,
-    ) -> List[KBChunk]:
+    ) -> Tuple[List[KBChunk], RetrievalDiagnostic]:
         """
-        Perform semantic retrieval against the Chroma index.
-        If filter_customer_eligible=True, applies metadata filters to exclude
-        superseded, draft, internal, or non-customer-answering documents.
+        Perform semantic retrieval against the Chroma index and construct a safe RetrievalDiagnostic.
+        Does NOT change search ranking, filtering, or retrieved chunk output.
         """
         query_embedding = self.embedding_provider.embed_query(query)
 
@@ -103,6 +103,20 @@ class KBVectorStore:
                 ]
             }
 
+        # Calculate candidate count before filtering if filtering is enabled
+        candidates_count = top_k
+        if filter_customer_eligible:
+            try:
+                unfiltered = self.collection.query(
+                    query_embeddings=[query_embedding],
+                    n_results=top_k,
+                    include=["documents"]
+                )
+                if unfiltered and unfiltered.get("ids") and unfiltered["ids"][0]:
+                    candidates_count = len(unfiltered["ids"][0])
+            except Exception:
+                candidates_count = top_k
+
         results = self.collection.query(
             query_embeddings=[query_embedding],
             n_results=top_k,
@@ -111,31 +125,72 @@ class KBVectorStore:
         )
 
         retrieved_chunks: List[KBChunk] = []
-        if not results or not results.get("ids") or not results["ids"][0]:
-            return retrieved_chunks
+        chunk_ids: List[str] = []
+        filenames: List[str] = []
+        distances: List[float] = []
 
-        ids_list = results["ids"][0]
-        docs_list = results["documents"][0]
-        meta_list = results["metadatas"][0]
+        if results and results.get("ids") and results["ids"][0]:
+            ids_list = results["ids"][0]
+            docs_list = results["documents"][0]
+            meta_list = results["metadatas"][0]
+            dist_list = results.get("distances", [[]])[0] if results.get("distances") else []
 
-        for chunk_id, text, meta in zip(ids_list, docs_list, meta_list):
-            doc_meta = DocumentMetadata(
-                document_id=meta.get("document_id", ""),
-                title=meta.get("title", ""),
-                status=meta.get("status", "active"),
-                audience=meta.get("audience", "customer"),
-                policy_authority=meta.get("policy_authority", "official"),
-                supersedes=meta.get("supersedes") or None,
-                superseded_by=meta.get("superseded_by") or None,
-                customer_answering=meta.get("customer_answering", True),
-            )
-            chunk = KBChunk(
-                chunk_id=chunk_id,
-                filename=meta.get("filename", ""),
-                heading=meta.get("heading") or None,
-                text=text,
-                metadata=doc_meta,
-            )
-            retrieved_chunks.append(chunk)
+            for chunk_id, text, meta, dist in zip(ids_list, docs_list, meta_list, dist_list + [0.0] * (len(ids_list) - len(dist_list))):
+                doc_meta = DocumentMetadata(
+                    document_id=meta.get("document_id", ""),
+                    title=meta.get("title", ""),
+                    status=meta.get("status", "active"),
+                    audience=meta.get("audience", "customer"),
+                    policy_authority=meta.get("policy_authority", "official"),
+                    supersedes=meta.get("supersedes") or None,
+                    superseded_by=meta.get("superseded_by") or None,
+                    customer_answering=meta.get("customer_answering", True),
+                )
+                fn = meta.get("filename", "")
+                chunk = KBChunk(
+                    chunk_id=chunk_id,
+                    filename=fn,
+                    heading=meta.get("heading") or None,
+                    text=text,
+                    metadata=doc_meta,
+                )
+                retrieved_chunks.append(chunk)
+                chunk_ids.append(chunk_id)
+                if fn and fn not in filenames:
+                    filenames.append(fn)
+                distances.append(float(dist))
 
-        return retrieved_chunks
+        has_usable_evidence = len(retrieved_chunks) > 0
+        failure_classification = None if has_usable_evidence else "RETRIEVAL_FAILURE"
+
+        diagnostic = RetrievalDiagnostic(
+            retrieval_query=query,
+            num_candidates_returned=candidates_count if filter_customer_eligible else len(retrieved_chunks),
+            num_eligible_chunks=len(retrieved_chunks),
+            retrieved_chunk_ids=chunk_ids,
+            retrieved_filenames=filenames,
+            distances=distances,
+            has_usable_evidence=has_usable_evidence,
+            failure_classification=failure_classification,
+            filter_applied=where_filter,
+        )
+
+        return retrieved_chunks, diagnostic
+
+    def search(
+        self,
+        query: str,
+        top_k: int = 10,
+        filter_customer_eligible: bool = True,
+    ) -> List[KBChunk]:
+        """
+        Perform semantic retrieval against the Chroma index.
+        If filter_customer_eligible=True, applies metadata filters to exclude
+        superseded, draft, internal, or non-customer-answering documents.
+        """
+        chunks, _ = self.search_with_diagnostics(
+            query=query,
+            top_k=top_k,
+            filter_customer_eligible=filter_customer_eligible,
+        )
+        return chunks

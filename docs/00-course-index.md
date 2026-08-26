@@ -51,6 +51,16 @@ This repository serves as both a production implementation and a self-contained 
 
 ---
 
+## Day 5 Study Curriculum
+
+27. **[27-day5-retrieval-diagnostics.md](file:///c:/Users/HP/OneDrive/Desktop/ai-intern-test/ai-agent-intern-test/docs/27-day5-retrieval-diagnostics.md)**: Retrieval diagnostics, retrieval vs generation failure classification, precision/recall intuition, top-k trade-offs, security context isolation, and interview Q&A.
+28. **[28-day5-retrieval-evaluation.md](file:///c:/Users/HP/OneDrive/Desktop/ai-intern-test/ai-agent-intern-test/docs/28-day5-retrieval-evaluation.md)**: Standalone deterministic retrieval evaluation, Precision@K, Recall@K, ground-truth relevance matching, and confusion matrix in vector search.
+29. **[29-day5-retrieval-sufficiency-and-abstention.md](file:///c:/Users/HP/OneDrive/Desktop/ai-intern-test/ai-agent-intern-test/docs/29-day5-retrieval-sufficiency-and-abstention.md)**: Retrieval sufficiency evaluation, safe agent abstention, distinguishing retrieved chunks from usable evidence, avoiding distance threshold traps, and preventing hallucinations.
+30. **[30-day5-grounded-generation.md](file:///c:/Users/HP/OneDrive/Desktop/ai-intern-test/ai-agent-intern-test/docs/30-day5-grounded-generation.md)**: Grounded generation architecture, system prompt contract, Data vs Instructions framing, source citation lineage, and interview revision sheet.
+31. **[31-day5-generation-evaluation.md](file:///c:/Users/HP/OneDrive/Desktop/ai-intern-test/ai-agent-intern-test/docs/31-day5-generation-evaluation.md)**: Standalone generation evaluation, deterministic vs semantic evaluation boundary, faithfulness, answer relevance, citation correctness, and LLM-as-a-judge limitations.
+
+---
+
 ## Architectural Decision Records (ADR)
 
 * **[decisions/001-rag-foundation.md](file:///c:/Users/HP/OneDrive/Desktop/ai-intern-test/ai-agent-intern-test/docs/decisions/001-rag-foundation.md)**: RAG Foundation Architecture — Lightweight Python components + local ChromaDB vs LangChain / LangGraph frameworks.
