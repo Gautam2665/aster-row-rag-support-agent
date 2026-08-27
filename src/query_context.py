@@ -36,8 +36,22 @@ class QueryContextualizer:
         last_turn = history_turns[-1]
         previous_user_q = last_turn.user_query.strip()
 
-        # If current query is already long and self-contained, or identical, avoid over-expanding
+        # If current query is already identical or contained, return clean query
         if cleaned_query.lower() in previous_user_q.lower():
+            return cleaned_query
+
+        query_lower = cleaned_query.lower()
+        words = query_lower.split()
+
+        # Check if current query is a short/ambiguous follow-up (e.g. "What about Canada?", "When will it arrive?", "Is it free?")
+        is_followup = (
+            any(query_lower.startswith(prefix) for prefix in ["what about", "how about", "what of", "is it", "does it", "can i", "what if", "and ", "also ", "why "])
+            or any(w in ("it", "that", "this", "they", "them", "there") for w in words)
+            or len(words) <= 5
+        )
+
+        # Standalone, self-contained questions (> 5 words without follow-up pronouns/phrases) do not need historical query expansion
+        if not is_followup:
             return cleaned_query
 
         # Combine previous user context topic with current query for vector search

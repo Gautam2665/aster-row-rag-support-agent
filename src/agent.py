@@ -103,6 +103,11 @@ class SupportAgent:
         if order_id_in_user_query:
             return "order_status"
 
+        # Explicit policy/product questions (e.g. return window, warranty, care) take precedence over inherited order context
+        is_policy_query = any(k in query_lower for k in ["return", "refund", "warranty", "ship", "shipping", "deliver", "care", "tumbler", "bag", "membership", "gift card", "price adjustment", "policy"])
+        if is_policy_query and not any(p in query_lower for p in ["where is my order", "where is my package", "order status", "track my order"]):
+            return "policy"
+
         # Only trigger clarification if the user is explicitly asking for order status / tracking without order ID in query
         is_order_tracking_query = any(phrase in query_lower for phrase in self.ORDER_STATUS_PHRASES) or query_lower.strip() in ("where is my order", "where is my order?", "where's my order")
         if is_order_tracking_query:
@@ -166,9 +171,13 @@ class SupportAgent:
         normalized_order_id = self.extract_order_id(user_query)
         if not normalized_order_id:
             query_lower = user_query.lower()
-            is_generic_tracking = any(phrase in query_lower for phrase in self.ORDER_STATUS_PHRASES) or query_lower.strip() in ("where is my order", "where is my order?", "where's my order", "where is my package", "where is my package?")
-            if not is_generic_tracking:
-                normalized_order_id = self.extract_order_id(retrieval_query)
+            is_order_followup = any(phrase in query_lower for phrase in self.ORDER_STATUS_PHRASES) or any(k in query_lower for k in ["status", "tracking", "arrive", "carrier", "delivered", "package", "where is it", "when will it"])
+            if is_order_followup:
+                for turn in reversed(recent_history):
+                    prev_id = self.extract_order_id(turn.user_query)
+                    if prev_id:
+                        normalized_order_id = prev_id
+                        break
 
         intent = self.detect_intent(user_query, normalized_order_id)
 
