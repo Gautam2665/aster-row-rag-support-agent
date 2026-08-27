@@ -285,3 +285,23 @@ python -c "from pathlib import Path; from src.evaluation import EvaluationRunner
 * **Why use structured observations?** Observations (`AgentObservation`) make the planning loop state-aware, enabling informed follow-up decisions without repeating identical tool calls.
 * **Why dual-layer evaluation?** Deterministic state assertions verify tools, security, and lineage independently of LLM non-determinism.
 * **How are prompt injections neutralized?** Pre-retrieval metadata filtering drops injection documents before vector search, and Data-Instruction XML framing isolates untrusted content from system directives.
+
+---
+
+## 14. AI Tools Used
+
+* **Tools Used**: Google Antigravity / Gemini 3.6 Flash for paired agentic coding, architecture planning, and test suite generation.
+* **Example of Incorrect Suggestion**:
+  * *Suggestion*: Relying purely on ChromaDB cosine distance thresholds (`distance < 0.35`) to determine whether retrieved knowledge-base evidence is sufficient.
+  * *Why It Was Wrong*: Vector embedding distance reflects proximity in vector space, not domain policy relevance. For out-of-domain queries (e.g. *"quantum computers"*), ChromaDB still returned nearest-neighbor vector chunks from unrelated warranty documents with low distance scores.
+* **How It Was Caught & Corrected**:
+  * Caught via unit test assertions expecting `RETRIEVAL_FAILURE` on out-of-domain queries.
+  * Corrected by introducing an explicit `evaluate_retrieval_sufficiency()` policy and `assess_evidence()` layer that inspects metadata eligibility, active status, document authority, and domain scope rather than relying on arbitrary vector distance cutoffs.
+
+---
+
+## 15. Demo Video
+
+![Aster & Row Support Agent Demo](demo.gif)
+*(Replace `demo.gif` with your recorded video or GIF file in the repository root)*
+
