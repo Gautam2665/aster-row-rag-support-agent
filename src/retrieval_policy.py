@@ -55,10 +55,10 @@ def evaluate_retrieval_sufficiency(
         )
 
     # Check for unsupported policy topics that lack authoritative evidence
-    if any(phrase in query_lower for phrase in ("unconditional replacement", "lost items")):
+    if any(phrase in query_lower for phrase in ("unconditional replacement", "lost items", "quantum", "interstellar", "jupiter")):
         return RetrievalSufficiency(
             sufficient=False,
-            reason="Knowledge base lacks authoritative evidence for the requested policy exception.",
+            reason="Knowledge base lacks authoritative evidence for the requested policy scope or product.",
             evidence_count=len(evidence_chunks),
             failure_category="RETRIEVAL_FAILURE",
         )

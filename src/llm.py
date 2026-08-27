@@ -96,6 +96,14 @@ class MockLLMProvider(BaseLLMProvider):
                 "[Source: 09-trailplus-membership.md > TrailPlus Membership Benefits > Return window]"
             )
 
+        # Warranty policy queries
+        if "warranty" in user_q:
+            return (
+                "Based on Aster & Row policy, our limited product warranty covers manufacturing defects "
+                "in materials or workmanship under normal use for 1 year from purchase. "
+                "[Source: 07-warranty.md > Limited Product Warranty > What is covered]"
+            )
+
         # Default: generic grounded policy response
         return (
             "Based on Aster & Row policy, customers on the standard plan may request a return "
