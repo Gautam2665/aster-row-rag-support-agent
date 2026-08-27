@@ -12,10 +12,12 @@ from src.tools.order_lookup import OrderLookupTool, CustomerSafeOrderResult
 from src.memory import SessionMemoryStore, ConversationTurn
 from src.context import ContextBuilder
 from src.query_context import QueryContextualizer
-from src.planner import BasePlanner, MockPlanner, AgentAction, AgentObservation, ActionType, ActionValidator, FailureCategory
+from src.planner import BasePlanner, MockPlanner, PlannerContext, AgentAction, AgentObservation, ActionType, ActionValidator, FailureCategory
 from src.trace import TraceEvent, TraceEventType
 from src.retrieval_trace import RetrievalDiagnostic
 from src.retrieval_policy import evaluate_retrieval_sufficiency
+from src.planner_policy import PlannerPolicy
+from src.evidence_policy import assess_evidence, EvidenceAssessment, EvidenceStatus
 
 
 @dataclass
@@ -205,10 +207,29 @@ class SupportAgent:
         while state.iterations < state.max_iterations:
             state.iterations += 1
 
-            # Plan next action based on current state & prior observations
+            # Plan next action based on current state & prior observations via PlannerContext
             try:
-                action = self.planner.plan_next_action(state)
+                planner_ctx = PlannerContext.from_agent_state(state)
+                action = self.planner.plan_next_action(planner_ctx)
                 ActionValidator.validate(action)
+
+                # State-aware Planner Policy Validation
+                policy_res = PlannerPolicy.validate_action(planner_ctx, action)
+                if not policy_res.is_permitted:
+                    state.handoff_recommended = True
+                    obs = AgentObservation(
+                        action_type=action.action_type,
+                        success=False,
+                        result=None,
+                        error_message=f"Planner policy rejection: {policy_res.reason}",
+                        failure_category=FailureCategory.PLANNER_FAILURE,
+                        handoff_recommended=True,
+                    )
+                    state.observations.append(obs)
+                    action = policy_res.fallback_action or AgentAction(
+                        action_type=ActionType.HANDOFF,
+                        reasoning=f"Planner policy fallback: {policy_res.reason}"
+                    )
             except Exception as e:
                 # Safe fallback: PLANNER_FAILURE
                 action = AgentAction(
@@ -397,12 +418,16 @@ class SupportAgent:
                 )
                 
                 sufficiency = evaluate_retrieval_sufficiency(state.evidence_chunks, diagnostic, user_query)
+                evidence_eval = assess_evidence(state.evidence_chunks)
                 retrieved_filenames = {c.filename for c in state.evidence_chunks}
                 
                 failure_cat = None
-                if not sufficiency.sufficient:
+                if not sufficiency.sufficient or evidence_eval.status == EvidenceStatus.INSUFFICIENT:
                     state.handoff_recommended = True
                     failure_cat = FailureCategory.RETRIEVAL_FAILURE
+                elif evidence_eval.status == EvidenceStatus.CONFLICT:
+                    state.handoff_recommended = True
+                    failure_cat = FailureCategory.BUSINESS_FAILURE
 
                 # Handoff Rule A: Source conflict between active policies 11 and 12
                 if "11-product-care.md" in retrieved_filenames and "12-breeze-tumbler-product-card.md" in retrieved_filenames:

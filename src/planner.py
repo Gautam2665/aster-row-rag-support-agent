@@ -151,72 +151,173 @@ class ActionValidator:
         return True
 
 
+@dataclass
+class PlannerContext:
+    """
+    Explicit, bounded context payload supplied to the agent planner.
+    Isolates planner decision-making from the full, mutable AgentState object.
+    Guarantees no customer PII or raw database objects enter the planner.
+    """
+    user_query: str
+    retrieval_query: str
+    intent_category: str
+    normalized_order_id: Optional[str] = None
+    has_usable_evidence: bool = False
+    evidence_count: int = 0
+    has_order_result: bool = False
+    order_found: Optional[bool] = None
+    observations_summary: List[Dict[str, Any]] = field(default_factory=list)
+    failure_category: Optional[str] = None
+    handoff_recommended: bool = False
+    iterations: int = 0
+
+    @classmethod
+    def from_agent_state(cls, state: Any) -> "PlannerContext":
+        """
+        Deterministic factory constructing a bounded PlannerContext from an AgentState object.
+        """
+        if isinstance(state, cls):
+            return state
+
+        user_query = getattr(state, "user_query", "")
+        retrieval_query = getattr(state, "retrieval_query", user_query)
+        intent_category = getattr(state, "intent_category", "policy")
+        normalized_order_id = getattr(state, "normalized_order_id", None)
+        handoff_recommended = getattr(state, "handoff_recommended", False)
+        iterations = getattr(state, "iterations", 0)
+
+        evidence_chunks = getattr(state, "evidence_chunks", [])
+        has_usable_evidence = bool(evidence_chunks and len(evidence_chunks) > 0)
+        evidence_count = len(evidence_chunks) if evidence_chunks else 0
+
+        order_result = getattr(state, "order_result", None)
+        has_order_result = order_result is not None
+        order_found = getattr(order_result, "found", None) if order_result else None
+
+        raw_observations = getattr(state, "observations", [])
+        obs_summaries = []
+        last_failure_cat = None
+
+        for obs in raw_observations:
+            if hasattr(obs, "to_dict"):
+                obs_dict = obs.to_dict()
+            elif isinstance(obs, dict):
+                obs_dict = obs.copy()
+            else:
+                obs_dict = {
+                    "action_type": str(getattr(obs, "action_type", "")),
+                    "success": bool(getattr(obs, "success", False)),
+                    "result_summary": str(getattr(obs, "result", "")),
+                    "failure_category": getattr(obs, "failure_category", None),
+                    "handoff_recommended": bool(getattr(obs, "handoff_recommended", False)),
+                }
+
+            # Security sanitization: strip any sensitive customer keys
+            res_summary = obs_dict.get("result_summary")
+            if isinstance(res_summary, dict):
+                clean_res = {
+                    k: v for k, v in res_summary.items()
+                    if k not in ("email", "address", "risk_score", "warehouse_note", "customer")
+                }
+                obs_dict["result_summary"] = clean_res
+
+            obs_summaries.append(obs_dict)
+            if obs_dict.get("failure_category"):
+                last_failure_cat = obs_dict.get("failure_category")
+
+        return cls(
+            user_query=user_query,
+            retrieval_query=retrieval_query,
+            intent_category=intent_category,
+            normalized_order_id=normalized_order_id,
+            has_usable_evidence=has_usable_evidence,
+            evidence_count=evidence_count,
+            has_order_result=has_order_result,
+            order_found=order_found,
+            observations_summary=obs_summaries,
+            failure_category=last_failure_cat,
+            handoff_recommended=handoff_recommended,
+            iterations=iterations,
+        )
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert PlannerContext to dictionary, ensuring zero PII or raw DB objects exist."""
+        return {
+            "user_query": self.user_query,
+            "retrieval_query": self.retrieval_query,
+            "intent_category": self.intent_category,
+            "normalized_order_id": self.normalized_order_id,
+            "has_usable_evidence": self.has_usable_evidence,
+            "evidence_count": self.evidence_count,
+            "has_order_result": self.has_order_result,
+            "order_found": self.order_found,
+            "observations_summary": self.observations_summary,
+            "failure_category": self.failure_category,
+            "handoff_recommended": self.handoff_recommended,
+            "iterations": self.iterations,
+        }
+
+
 class BasePlanner(ABC):
-    """Abstract base interface for agent planners."""
+    """Abstract base interface for agent planners operating on PlannerContext."""
 
     @abstractmethod
-    def plan_next_action(self, agent_state: Any) -> AgentAction:
-        """Given current AgentState, plan the next validated AgentAction."""
+    def plan_next_action(self, context: Any) -> AgentAction:
+        """Given a PlannerContext (or AgentState), plan the next validated AgentAction."""
         pass
 
 
 class MockPlanner(BasePlanner):
     """
     Deterministic mock planner for unit testing without live LLM calls.
-    Decides the next action based on structured state, intent, and prior observations.
+    Decides the next action based on structured PlannerContext.
     """
 
     def __init__(self, fixed_action: Optional[AgentAction] = None):
         self.fixed_action = fixed_action
 
-    def plan_next_action(self, agent_state: Any) -> AgentAction:
+    def plan_next_action(self, context: Any) -> AgentAction:
         if self.fixed_action:
             ActionValidator.validate(self.fixed_action)
             return self.fixed_action
 
-        # Inspect state and prior observations
-        intent = getattr(agent_state, "intent_category", "policy")
-        order_id = getattr(agent_state, "normalized_order_id", None)
-        handoff = getattr(agent_state, "handoff_recommended", False)
-        observations = getattr(agent_state, "observations", [])
-        evidence_chunks = getattr(agent_state, "evidence_chunks", [])
-        order_result = getattr(agent_state, "order_result", None)
+        planner_ctx = PlannerContext.from_agent_state(context)
 
-        if handoff:
+        if planner_ctx.handoff_recommended:
             action = AgentAction(
                 action_type=ActionType.HANDOFF,
                 reasoning="Handoff recommended due to policy conflict, unknown order, or privacy request."
             )
-        elif intent == "clarification":
+        elif planner_ctx.intent_category == "clarification":
             action = AgentAction(
                 action_type=ActionType.CLARIFY,
                 reasoning="Missing order ID for order status question; requesting clarification."
             )
-        elif observations:
-            # Check prior observations to avoid repeating actions
-            last_obs = observations[-1]
-            if last_obs.action_type == ActionType.LOOKUP_ORDER:
-                if order_result and not order_result.found:
+        elif planner_ctx.observations_summary:
+            last_obs = planner_ctx.observations_summary[-1]
+            last_action_type = last_obs.get("action_type")
+            if last_action_type == ActionType.LOOKUP_ORDER:
+                if planner_ctx.has_order_result and planner_ctx.order_found is False:
                     action = AgentAction(action_type=ActionType.HANDOFF, reasoning="Order not found; triggering handoff.")
                 else:
                     action = AgentAction(action_type=ActionType.RESPOND, reasoning="Order status retrieved; generating response.")
-            elif last_obs.action_type == ActionType.RETRIEVE_KB:
-                if not evidence_chunks:
+            elif last_action_type == ActionType.RETRIEVE_KB:
+                if not planner_ctx.has_usable_evidence:
                     action = AgentAction(action_type=ActionType.HANDOFF, reasoning="No evidence retrieved; triggering handoff.")
                 else:
                     action = AgentAction(action_type=ActionType.RESPOND, reasoning="KB evidence retrieved; generating response.")
             else:
                 action = AgentAction(action_type=ActionType.RESPOND, reasoning="Observation recorded; responding.")
-        elif intent == "order_status" and order_id:
+        elif planner_ctx.intent_category == "order_status" and planner_ctx.normalized_order_id:
             action = AgentAction(
                 action_type=ActionType.LOOKUP_ORDER,
-                parameters={"order_id": order_id},
-                reasoning=f"Valid order ID '{order_id}' present; looking up order status."
+                parameters={"order_id": planner_ctx.normalized_order_id},
+                reasoning=f"Valid order ID '{planner_ctx.normalized_order_id}' present; looking up order status."
             )
         else:
             action = AgentAction(
                 action_type=ActionType.RETRIEVE_KB,
-                parameters={"query": getattr(agent_state, "retrieval_query", getattr(agent_state, "user_query", ""))},
+                parameters={"query": planner_ctx.retrieval_query or planner_ctx.user_query},
                 reasoning="Policy question; retrieving KB evidence."
             )
 
@@ -250,7 +351,7 @@ CRITICAL RULES:
 class LLMPlanner(BasePlanner):
     """
     LLM-driven action planner that uses the BaseLLMProvider abstraction
-    to generate structured JSON actions, validated by ActionValidator.
+    to generate structured JSON actions from PlannerContext, validated by ActionValidator.
     Incorporate prior action observations into planning context.
     """
 
@@ -269,28 +370,29 @@ class LLMPlanner(BasePlanner):
             return match_obj.group(1).strip()
         return text
 
-    def plan_next_action(self, agent_state: Any) -> AgentAction:
+    def plan_next_action(self, context: Any) -> AgentAction:
         """
-        Calls the LLMProvider to generate a JSON action plan, parses it,
+        Calls the LLMProvider to generate a JSON action plan from PlannerContext, parses it,
         and validates it through ActionValidator.
         If malformed or invalid, safely falls back to a HANDOFF action.
         """
-        user_query = getattr(agent_state, "user_query", "")
-        retrieval_q = getattr(agent_state, "retrieval_query", user_query)
-        order_id = getattr(agent_state, "normalized_order_id", None)
-        intent = getattr(agent_state, "intent_category", "policy")
-        observations = getattr(agent_state, "observations", [])
+        planner_ctx = PlannerContext.from_agent_state(context)
 
         obs_summaries = []
-        for i, obs in enumerate(observations, 1):
-            obs_summaries.append(f"Observation {i}: Action={obs.action_type}, Success={obs.success}, Summary={obs.to_dict()['result_summary']}")
+        for i, obs in enumerate(planner_ctx.observations_summary, 1):
+            action_type = obs.get("action_type", "")
+            success = obs.get("success", False)
+            summary = obs.get("result_summary", "")
+            obs_summaries.append(f"Observation {i}: Action={action_type}, Success={success}, Summary={summary}")
         obs_text = "\n".join(obs_summaries) if obs_summaries else "None"
 
         user_prompt = (
-            f"User Query: {user_query}\n"
-            f"Retrieval Query Context: {retrieval_q}\n"
-            f"Detected Intent: {intent}\n"
-            f"Normalized Order ID: {order_id or 'None'}\n"
+            f"User Query: {planner_ctx.user_query}\n"
+            f"Retrieval Query Context: {planner_ctx.retrieval_query}\n"
+            f"Detected Intent: {planner_ctx.intent_category}\n"
+            f"Normalized Order ID: {planner_ctx.normalized_order_id or 'None'}\n"
+            f"Has Usable Evidence: {planner_ctx.has_usable_evidence} (count: {planner_ctx.evidence_count})\n"
+            f"Has Order Result: {planner_ctx.has_order_result} (found: {planner_ctx.order_found})\n"
             f"Prior Observations:\n{obs_text}\n"
             f"Plan the single next ActionType JSON object."
         )

@@ -61,6 +61,15 @@ This repository serves as both a production implementation and a self-contained 
 
 ---
 
+## Day 6 Study Curriculum
+
+32. **[32-day6-planner-context-and-state-based-planning.md](file:///c:/Users/HP/OneDrive/Desktop/ai-intern-test/ai-agent-intern-test/docs/32-day6-planner-context-and-state-based-planning.md)**: Explicit `PlannerContext` architecture, isolating agent state from planner decisions, observation feedback loops, and keeping execution authority inside the application layer.
+33. **[33-day6-planner-policy-and-execution-boundary.md](file:///c:/Users/HP/OneDrive/Desktop/ai-intern-test/ai-agent-intern-test/docs/33-day6-planner-policy-and-execution-boundary.md)**: Deterministic planner policy enforcement, defense-in-depth validation (`ActionValidator` + `PlannerPolicy`), safe rejection handling, and execution boundaries.
+34. **[34-day6-evidence-conflict-and-grounding.md](file:///c:/Users/HP/OneDrive/Desktop/ai-intern-test/ai-agent-intern-test/docs/34-day6-evidence-conflict-and-grounding.md)**: Deterministic evidence assessment, active-source conflict detection, USABLE vs INSUFFICIENT vs CONFLICT classification, and human handoff escalation.
+35. **[35-day6-final-integration-and-interview-revision.md](file:///c:/Users/HP/OneDrive/Desktop/ai-intern-test/ai-agent-intern-test/docs/35-day6-final-integration-and-interview-revision.md)**: End-to-end Day 6 architecture integration audit, subsystem boundaries, failure taxonomy, 2-minute elevator pitch, and master 10-question interview bank.
+
+---
+
 ## Architectural Decision Records (ADR)
 
 * **[decisions/001-rag-foundation.md](file:///c:/Users/HP/OneDrive/Desktop/ai-intern-test/ai-agent-intern-test/docs/decisions/001-rag-foundation.md)**: RAG Foundation Architecture — Lightweight Python components + local ChromaDB vs LangChain / LangGraph frameworks.

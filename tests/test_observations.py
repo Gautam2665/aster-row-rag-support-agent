@@ -1,4 +1,5 @@
 import pytest
+from typing import Any, Dict, List, Optional
 from pathlib import Path
 from src.agent import SupportAgent, AgentState
 from src.retrieval import KBVectorStore
@@ -32,23 +33,30 @@ def obs_agent_fixture():
     return agent
 
 
+from src.planner import MockPlanner, AgentAction, AgentObservation, ActionType, BasePlanner, PlannerContext
+
+
 class TrackingPlanner(BasePlanner):
     """Planner that records state history passed into plan_next_action for verification."""
     def __init__(self):
         self.state_snapshots = []
 
-    def plan_next_action(self, agent_state: AgentState) -> AgentAction:
+    def plan_next_action(self, context: Any) -> AgentAction:
+        planner_ctx = PlannerContext.from_agent_state(context)
         # Snapshot prior observations count
-        self.state_snapshots.append(list(agent_state.observations))
+        self.state_snapshots.append(list(planner_ctx.observations_summary))
         
-        if not agent_state.observations:
-            if agent_state.normalized_order_id:
-                return AgentAction(action_type=ActionType.LOOKUP_ORDER, parameters={"order_id": agent_state.normalized_order_id})
-            return AgentAction(action_type=ActionType.RETRIEVE_KB, parameters={"query": agent_state.user_query})
+        if not planner_ctx.observations_summary:
+            if planner_ctx.normalized_order_id:
+                return AgentAction(action_type=ActionType.LOOKUP_ORDER, parameters={"order_id": planner_ctx.normalized_order_id})
+            return AgentAction(action_type=ActionType.RETRIEVE_KB, parameters={"query": planner_ctx.user_query})
         
         # Second decision: check prior observation
-        last_obs = agent_state.observations[-1]
-        if last_obs.action_type == ActionType.LOOKUP_ORDER and not last_obs.success:
+        last_obs = planner_ctx.observations_summary[-1]
+        last_action_type = last_obs.get("action_type") if isinstance(last_obs, dict) else getattr(last_obs, "action_type", None)
+        last_success = last_obs.get("success") if isinstance(last_obs, dict) else getattr(last_obs, "success", False)
+        
+        if last_action_type == ActionType.LOOKUP_ORDER and not last_success:
             return AgentAction(action_type=ActionType.HANDOFF)
         return AgentAction(action_type=ActionType.RESPOND)
 
@@ -82,7 +90,7 @@ def test_second_planner_decision_receives_first_observation(obs_agent_fixture):
     assert len(tracking_planner.state_snapshots[0]) == 0
     # Second call: 1 prior observation (from LOOKUP_ORDER)
     assert len(tracking_planner.state_snapshots[1]) == 1
-    assert tracking_planner.state_snapshots[1][0].action_type == ActionType.LOOKUP_ORDER
+    assert tracking_planner.state_snapshots[1][0]["action_type"] == ActionType.LOOKUP_ORDER
 
 
 def test_repeated_actions_avoided_when_evidence_present(obs_agent_fixture):
