@@ -41,9 +41,52 @@ class MockLLMProvider(BaseLLMProvider):
         if self.fixed_response:
             return self.fixed_response
 
-        if "NO ELIGIBLE EVIDENCE RETRIEVED" in user_prompt:
-            return "I am sorry, but the supplied information is insufficient to answer your request. Please contact Aster & Row customer support for assistance."
+        # Order not found
+        if "ORDER_NOT_FOUND" in user_prompt:
+            return (
+                "I wasn't able to find that order in our system. Please double-check your order ID "
+                "and try again, or contact Aster & Row customer support for further assistance."
+            )
 
+        # Successful order lookup — extract and summarise key fields from the prompt
+        if "<order_lookup_data>" in user_prompt:
+            # Pull a few key values from the XML block for a realistic response
+            import re
+            oid = re.search(r"Order ID: ([^\n]+)", user_prompt)
+            status = re.search(r"Status: ([^\n]+)", user_prompt)
+            carrier = re.search(r"Carrier: ([^\n]+)", user_prompt)
+            eta = re.search(r"Estimated Delivery: ([^\n]+)", user_prompt)
+            oid_str = oid.group(1).strip() if oid else "your order"
+            status_str = status.group(1).strip() if status else "unknown"
+            carrier_str = carrier.group(1).strip() if carrier else "the carrier"
+            eta_str = eta.group(1).strip() if eta else "unavailable"
+            if eta_str in ("Unavailable / Not Applicable", "None"):
+                return (
+                    f"Your order {oid_str} is currently **{status_str}** with {carrier_str}. "
+                    f"No estimated delivery date is available at this time. "
+                    f"For live tracking, please use the tracking number provided in your shipping confirmation."
+                )
+            return (
+                f"Your order {oid_str} is currently **{status_str}** with {carrier_str}. "
+                f"Estimated delivery: {eta_str}."
+            )
+
+        # Insufficient evidence / no eligible evidence retrieved
+        if "NO ELIGIBLE EVIDENCE RETRIEVED" in user_prompt or "INSUFFICIENT" in user_prompt:
+            return (
+                "I'm sorry — I wasn't able to find specific information to answer your question. "
+                "Please contact Aster & Row customer support for assistance."
+            )
+
+        # International shipping / Canada queries
+        if "canada" in user_prompt.lower() or "international" in user_prompt.lower():
+            return (
+                "Based on Aster & Row policy, we ship to Canada and other supported international "
+                "destinations. Duties and taxes may apply depending on your country. "
+                "[Source: 06-international-shipping.md > International Shipping > Supported destinations]"
+            )
+
+        # Default: generic grounded policy response
         return (
             "Based on Aster & Row policy, customers on the standard plan may request a return "
             "within 30 calendar days of delivery. "
