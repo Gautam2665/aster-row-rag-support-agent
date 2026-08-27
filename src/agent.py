@@ -60,6 +60,34 @@ class SupportAgent:
 
     EXPLICIT_ORDER_ID_REGEX = re.compile(r"\bORD[-_\s]?(\d{4})\b", re.IGNORECASE)
     BARE_NUMBER_REGEX = re.compile(r"\b(\d{4})\b")
+    ORDER_STATUS_PHRASES = [
+        "where is my order", "order status", "track my order", "where is my package",
+        "status of my order", "when will my order arrive", "where is order", "status of order",
+        "where is my", "when will it arrive", "where is"
+    ]
+    PRIVACY_KEYWORDS = {"email", "address", "risk score", "internal note", "fraud review", "risk_score"}
+
+    def __init__(
+        self,
+        vector_store: Optional[KBVectorStore] = None,
+        order_tool: Optional[OrderLookupTool] = None,
+        llm_provider: Optional[BaseLLMProvider] = None,
+        planner: Optional[BasePlanner] = None,
+        memory_store: Optional[SessionMemoryStore] = None,
+        max_iterations: int = 3,
+        max_history_turns: int = 5,
+    ):
+        self.vector_store = vector_store or KBVectorStore()
+        self.order_tool = order_tool or OrderLookupTool()
+        self.llm_provider = llm_provider or get_default_provider()
+        self.planner = planner or MockPlanner()
+        self.memory_store = memory_store or SessionMemoryStore(max_turns_per_session=max_history_turns)
+        self.max_iterations = max_iterations
+
+        # Explicit tool allowlist
+        self.allowed_tools = {
+            "order_lookup": self.order_tool
+        }
 
     def extract_order_id(self, text: str, recent_history: Optional[List[Any]] = None) -> Optional[str]:
         """Extract and normalize order ID (e.g. 'ORD-1007') from text or short clarification responses."""
