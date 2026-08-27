@@ -58,47 +58,43 @@ class SupportAgent:
     bounded conversation memory, action planning, observation tracking, and LLM generation.
     """
 
-    ORDER_ID_REGEX = re.compile(r"\bORD-\d{4}\b", re.IGNORECASE)
-    ORDER_STATUS_PHRASES = [
-        "where is my order", "order status", "track my order", "where is my package",
-        "status of my order", "when will my order arrive", "where is order", "status of order",
-        "where is my", "when will it arrive", "where is"
-    ]
-    PRIVACY_KEYWORDS = {"email", "address", "risk score", "internal note", "fraud review", "risk_score"}
+    EXPLICIT_ORDER_ID_REGEX = re.compile(r"\bORD[-_\s]?(\d{4})\b", re.IGNORECASE)
+    BARE_NUMBER_REGEX = re.compile(r"\b(\d{4})\b")
 
-    def __init__(
-        self,
-        vector_store: Optional[KBVectorStore] = None,
-        order_tool: Optional[OrderLookupTool] = None,
-        llm_provider: Optional[BaseLLMProvider] = None,
-        planner: Optional[BasePlanner] = None,
-        memory_store: Optional[SessionMemoryStore] = None,
-        max_iterations: int = 3,
-        max_history_turns: int = 5,
-    ):
-        self.vector_store = vector_store or KBVectorStore()
-        self.order_tool = order_tool or OrderLookupTool()
-        self.llm_provider = llm_provider or get_default_provider()
-        self.planner = planner or MockPlanner()
-        self.memory_store = memory_store or SessionMemoryStore(max_turns_per_session=max_history_turns)
-        self.max_iterations = max_iterations
+    def extract_order_id(self, text: str, recent_history: Optional[List[Any]] = None) -> Optional[str]:
+        """Extract and normalize order ID (e.g. 'ORD-1007') from text or short clarification responses."""
+        if not text:
+            return None
 
-        # Explicit tool allowlist
-        self.allowed_tools = {
-            "order_lookup": self.order_tool
-        }
-
-    def extract_order_id(self, text: str) -> Optional[str]:
-        """Extract and normalize order ID (e.g. 'ORD-1007') from text."""
-        match = self.ORDER_ID_REGEX.search(text)
+        # 1. Direct match for ORD prefix variations: ORD-1007, ORD1007, ORD 1007, ord-1007
+        match = self.EXPLICIT_ORDER_ID_REGEX.search(text)
         if match:
-            return match.group(0).upper()
+            return f"ORD-{match.group(1)}"
+
+        # 2. Match bare 4-digit number (e.g. "1007", "order 1007") when replying to clarification or short input
+        bare_match = self.BARE_NUMBER_REGEX.search(text)
+        if bare_match:
+            digits = bare_match.group(1)
+            query_clean = text.strip().lower()
+            tokens = query_clean.split()
+            is_short_number_reply = len(tokens) <= 4 or any(k in query_clean for k in ["order", "number", "id", "#"])
+
+            was_clarification = False
+            if recent_history:
+                last_turn = recent_history[-1]
+                if "order id" in last_turn.assistant_response.lower() or "provide" in last_turn.assistant_response.lower():
+                    was_clarification = True
+
+            if is_short_number_reply or was_clarification:
+                if not (digits.startswith("202") and ("year" in query_clean or "in 202" in query_clean)):
+                    return f"ORD-{digits}"
+
         return None
 
-    def detect_intent(self, user_query: str, order_id: Optional[str]) -> str:
+    def detect_intent(self, user_query: str, order_id: Optional[str], recent_history: Optional[List[Any]] = None) -> str:
         """Classify user query into policy, order_status, or clarification intent."""
         query_lower = user_query.lower()
-        order_id_in_user_query = self.extract_order_id(user_query)
+        order_id_in_user_query = self.extract_order_id(user_query, recent_history)
 
         if order_id_in_user_query:
             return "order_status"
@@ -168,18 +164,23 @@ class SupportAgent:
         # Construct separate retrieval-oriented query via QueryContextualizer
         retrieval_query = QueryContextualizer.build_retrieval_query(user_query, recent_history)
 
-        normalized_order_id = self.extract_order_id(user_query)
+        normalized_order_id = self.extract_order_id(user_query, recent_history)
         if not normalized_order_id:
-            query_lower = user_query.lower()
-            is_order_followup = any(phrase in query_lower for phrase in self.ORDER_STATUS_PHRASES) or any(k in query_lower for k in ["status", "tracking", "arrive", "carrier", "delivered", "package", "where is it", "when will it"])
-            if is_order_followup:
-                for turn in reversed(recent_history):
-                    prev_id = self.extract_order_id(turn.user_query)
-                    if prev_id:
-                        normalized_order_id = prev_id
-                        break
+            query_lower = user_query.lower().strip()
+            is_generic_tracking = query_lower in (
+                "where is my order", "where is my order?", "where's my order",
+                "where is my package", "where is my package?", "order status", "track my order"
+            )
+            if not is_generic_tracking:
+                is_order_followup = any(k in query_lower for k in ["status", "tracking", "arrive", "carrier", "delivered", "package", "where is it", "when will it"])
+                if is_order_followup:
+                    for turn in reversed(recent_history):
+                        prev_id = self.extract_order_id(turn.user_query, recent_history)
+                        if prev_id:
+                            normalized_order_id = prev_id
+                            break
 
-        intent = self.detect_intent(user_query, normalized_order_id)
+        intent = self.detect_intent(user_query, normalized_order_id, recent_history)
 
         state = AgentState(
             session_id=session_id,
