@@ -45,6 +45,13 @@ class MockLLMProvider(BaseLLMProvider):
         q_match = re.search(r"<user_question>\s*(.*?)\s*</user_question>", user_prompt, re.DOTALL)
         user_q = q_match.group(1).lower() if q_match else user_prompt.lower()
 
+        # Insufficient evidence / no eligible evidence retrieved / handoff recommended
+        if "NO ELIGIBLE EVIDENCE RETRIEVED" in user_prompt or "INSUFFICIENT" in user_prompt:
+            return (
+                "I'm sorry — I wasn't able to find specific information to answer your question. "
+                "Please contact Aster & Row customer support for assistance."
+            )
+
         # Order not found
         if "ORDER_NOT_FOUND" in user_prompt:
             return (
