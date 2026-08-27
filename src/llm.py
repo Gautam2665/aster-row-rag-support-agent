@@ -88,6 +88,14 @@ class MockLLMProvider(BaseLLMProvider):
                 "[Source: 06-international-shipping.md > International Shipping > Supported destinations]"
             )
 
+        # TrailPlus membership queries
+        if "trailplus" in user_q:
+            return (
+                "Based on Aster & Row policy, TrailPlus members receive an extended 60-day return window "
+                "from delivery for eligible items. "
+                "[Source: 09-trailplus-membership.md > TrailPlus Membership Benefits > Return window]"
+            )
+
         # Default: generic grounded policy response
         return (
             "Based on Aster & Row policy, customers on the standard plan may request a return "
