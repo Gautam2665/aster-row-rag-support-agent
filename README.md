@@ -93,27 +93,34 @@ SessionMemoryStore        QueryContextualizer             AgentTrace
 ```text
 ai-agent-intern-test/
 ├── src/
-│   ├── agent.py              # SupportAgent bounded state machine orchestrator
-│   ├── planner.py            # ReAct LLMPlanner, ActionValidator & FailureCategory
-│   ├── memory.py             # Bounded SessionMemoryStore & ConversationTurn
-│   ├── context.py            # ContextBuilder with XML data-instruction framing
-│   ├── query_context.py      # QueryContextualizer for retrieval query reformulation
-│   ├── trace.py              # AgentTrace & PII-sanitized TraceEvent logging
-│   ├── evaluation.py         # EvaluationRunner for visible & custom evaluation cases
-│   ├── cli.py                # Minimal CLI application runtime adapter
-│   ├── ingestion.py          # Heading-aware Markdown document chunker
-│   ├── retrieval.py          # KBVectorStore ChromaDB retriever with metadata filters
-│   ├── embeddings.py         # EmbeddingProvider enforcing single embedding space
-│   ├── llm.py                # BaseLLMProvider, MockLLMProvider, OpenAILLMProvider
+│   ├── agent.py                    # SupportAgent bounded state machine orchestrator
+│   ├── planner.py                  # LLMPlanner, ActionValidator, PlannerContext & FailureCategory
+│   ├── planner_policy.py           # Layer-2 state-aware action authorization policy
+│   ├── memory.py                   # Bounded SessionMemoryStore & ConversationTurn
+│   ├── context.py                  # ContextBuilder with XML data-instruction framing
+│   ├── query_context.py            # QueryContextualizer for retrieval query reformulation
+│   ├── trace.py                    # AgentTrace & PII-sanitized TraceEvent logging
+│   ├── evaluation.py               # EvaluationRunner for visible & custom evaluation cases
+│   ├── cli.py                      # Minimal CLI application runtime adapter
+│   ├── ingestion.py                # Heading-aware Markdown document chunker
+│   ├── retrieval.py                # KBVectorStore ChromaDB retriever with metadata filters
+│   ├── retrieval_trace.py          # Non-PII retrieval diagnostic metadata
+│   ├── retrieval_evaluation.py     # Deterministic precision@k / recall@k metrics
+│   ├── retrieval_policy.py         # Retrieval sufficiency policy (SUFFICIENT/INSUFFICIENT)
+│   ├── evidence_policy.py          # Evidence conflict resolution (USABLE/CONFLICT/INSUFFICIENT)
+│   ├── generation_policy.py        # Grounded generation section enforcement
+│   ├── generation_evaluation.py    # Deterministic faithfulness & citation checks
+│   ├── embeddings.py               # EmbeddingProvider enforcing single embedding space
+│   ├── llm.py                      # BaseLLMProvider, MockLLMProvider, OpenAILLMProvider
 │   └── tools/
-│       └── order_lookup.py   # OrderLookupTool security firewall & CustomerSafeOrderResult
-├── tests/                    # 162 Unit Tests Across 22 Test Suites (100% Passing)
+│       └── order_lookup.py         # OrderLookupTool security firewall & CustomerSafeOrderResult
+├── tests/                    # 225 Unit Tests Across 30 Test Suites (100% Passing)
 ├── evaluation/
 │   ├── visible-cases.json    # 15 candidate visible evaluation cases
 │   ├── custom-cases.json     # 5 original custom evaluation cases
 │   └── evaluation_results.json # Generated evaluation execution reports
 ├── experiments/              # Educational RAG & LLM experiment scripts
-└── docs/                     # 26 Comprehensive Study & Architecture Curriculum Modules
+└── docs/                     # 35 Comprehensive Study & Architecture Curriculum Modules
 ```
 
 ---
@@ -179,7 +186,7 @@ Run the complete test suite using `pytest`:
 ```bash
 pytest
 ```
-* **Current Verified Test Count**: **162 / 162 Passed** across 22 test files (in ~12.0s).
+* **Current Verified Test Count**: **225 / 225 Passed** across 30 test files (in ~14s).
 
 ---
 
