@@ -41,6 +41,10 @@ class MockLLMProvider(BaseLLMProvider):
         if self.fixed_response:
             return self.fixed_response
 
+        import re
+        q_match = re.search(r"<user_question>\s*(.*?)\s*</user_question>", user_prompt, re.DOTALL)
+        user_q = q_match.group(1).lower() if q_match else user_prompt.lower()
+
         # Order not found
         if "ORDER_NOT_FOUND" in user_prompt:
             return (
@@ -50,8 +54,6 @@ class MockLLMProvider(BaseLLMProvider):
 
         # Successful order lookup — extract and summarise key fields from the prompt
         if "<order_lookup_data>" in user_prompt:
-            # Pull a few key values from the XML block for a realistic response
-            import re
             oid = re.search(r"Order ID: ([^\n]+)", user_prompt)
             status = re.search(r"Status: ([^\n]+)", user_prompt)
             carrier = re.search(r"Carrier: ([^\n]+)", user_prompt)
@@ -78,8 +80,8 @@ class MockLLMProvider(BaseLLMProvider):
                 "Please contact Aster & Row customer support for assistance."
             )
 
-        # International shipping / Canada queries
-        if "canada" in user_prompt.lower() or "international" in user_prompt.lower():
+        # International shipping / Canada queries (matched against user_question ONLY)
+        if "canada" in user_q or "international" in user_q:
             return (
                 "Based on Aster & Row policy, we ship to Canada and other supported international "
                 "destinations. Duties and taxes may apply depending on your country. "
