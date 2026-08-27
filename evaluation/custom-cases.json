@@ -110,6 +110,27 @@
         "handoff": true,
         "expected_failure_category": "PLANNER_FAILURE"
       }
+    },
+    {
+      "id": "custom-incomplete-order-id-clarification-followup",
+      "category": "conversation",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Where is my order?"
+        },
+        {
+          "role": "user",
+          "content": "1007"
+        }
+      ],
+      "expect": {
+        "tool": "order_lookup",
+        "handoff": false,
+        "must_include": [
+          "shipped"
+        ]
+      }
     }
   ]
 }
