@@ -1,6 +1,6 @@
 # Aster & Row AI Customer Support Agent
 
-A production-grade, bounded customer-support AI agent built for Aster & Row. It combines Retrieval-Augmented Generation (RAG), customer-safe order status lookups, bounded multi-turn conversation memory, explicit ReAct planning, deterministic action validation, failure recovery, structured execution tracing, and dual-layer evaluation.
+A security-hardened, bounded customer-support AI agent built for Aster & Row. It combines Retrieval-Augmented Generation (RAG), customer-safe order status lookups, bounded multi-turn conversation memory, explicit ReAct planning, deterministic action validation, failure recovery, structured execution tracing, and dual-layer evaluation.
 
 ---
 
@@ -136,8 +136,8 @@ ai-agent-intern-test/
 ### Installation Steps
 ```bash
 # 1. Clone repository
-git clone https://github.com/anantgarg/ai-agent-intern-test.git
-cd ai-agent-intern-test
+git clone https://github.com/Gautam2665/aster-row-rag-support-agent.git
+cd aster-row-rag-support-agent
 
 # 2. Create and activate virtual environment
 python -m venv venv
@@ -200,10 +200,10 @@ The project features a data-driven evaluation harness in `src/evaluation.py`:
 # 1. Run 15 Visible Evaluation Cases
 python -c "from pathlib import Path; from src.evaluation import EvaluationRunner; runner = EvaluationRunner(cases_json_path=Path('evaluation/visible-cases.json')); reports = runner.run_all(); runner.print_terminal_summary(reports)"
 
-# 2. Run 5 Original Custom Evaluation Cases
+# 2. Run 6 Original Custom Evaluation Cases
 python -c "from pathlib import Path; from src.evaluation import EvaluationRunner; runner = EvaluationRunner(cases_json_path=Path('evaluation/custom-cases.json')); reports = runner.run_all(); runner.print_terminal_summary(reports)"
 
-# 3. Run Combined Evaluation Suite (20 Total Cases)
+# 3. Run Combined Evaluation Suite (21 Total Cases)
 python -c "from pathlib import Path; from src.evaluation import EvaluationRunner; runner = EvaluationRunner(cases_json_path=[Path('evaluation/visible-cases.json'), Path('evaluation/custom-cases.json')]); reports = runner.run_all(); runner.print_terminal_summary(reports)"
 ```
 
@@ -273,7 +273,7 @@ python -c "from pathlib import Path; from src.evaluation import EvaluationRunner
 1. **Offline Evaluation Boundary**: Without an `OPENAI_API_KEY`, evaluation reports mark semantic prose assertions as `UNVERIFIED_REQUIRES_LLM`.
 2. **In-Process Memory**: `SessionMemoryStore` is an in-memory dictionary. Production deployments require persistent storage (e.g. Redis/PostgreSQL).
 3. **Controlled Agentic Loop**: The agent intentionally limits planning to `max_iterations = 3` and supported actions (`RETRIEVE_KB`, `LOOKUP_ORDER`, `CLARIFY`, `RESPOND`, `HANDOFF`). It does not support arbitrary autonomous script execution.
-4. **Scenario-Based Evaluation**: Evaluation cases cover 20 key support scenarios rather than a full multi-thousand case production benchmark.
+4. **Scenario-Based Evaluation**: Evaluation cases cover 21 key support scenarios rather than a full multi-thousand case production benchmark.
 
 ---
 
