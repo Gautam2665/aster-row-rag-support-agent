@@ -16,7 +16,13 @@ This repository implements a **bounded, security-hardened customer support agent
 
 ---
 
-## 2. Architecture
+## 2. Architecture & Technology Stack
+
+### Core Technology Stack
+* **LLM Provider**: `MockLLMProvider` (Default offline scenario-based generation) / `OpenAILLMProvider` (`gpt-4o-mini` optional live mode)
+* **Embeddings**: `SentenceTransformer` (`all-MiniLM-L6-v2`, 384-dimensional local vector embeddings)
+* **Agent Framework**: Custom Python Bounded State Machine (Zero external agent frameworks like LangChain, LangGraph, or ReAct per project constraints)
+* **Vector Storage**: ChromaDB persistent vector database (`chromadb`) with pre-retrieval metadata filtering
 
 ```text
                                   USER
@@ -277,16 +283,14 @@ python -c "from pathlib import Path; from src.evaluation import EvaluationRunner
 
 ---
 
-## 13. Interview Talking Points
+## 13. AI Tools Used
 
-* **Why RAG instead of full prompt stuffing?** RAG avoids context window exhaustion, reduces TTFT latency, saves cost, and eliminates "lost-in-the-middle" attention degradation.
-* **Why metadata filtering before vector search?** Semantic vector similarity alone retrieves superseded policies (e.g., 60-day legacy vs 30-day active). Pre-retrieval filtering (`status == "active"`) ensures vector search operates only on authoritative evidence.
-* **Why separate memory from retrieval?** Memory stores dialogue history (`SessionMemoryStore`). Context determines prompt framing (`ContextBuilder`). Query contextualization determines vector search (`QueryContextualizer`).
-* **Why separate Planner from Executor?** The LLM proposes an `AgentAction`; `ActionValidator` validates schema; `SupportAgent` checks tool allowlists. The LLM is a decision component, not the system authority.
-* **Why bound agent iterations (`max_iterations = 3`)?** LLMs are probabilistic models that can hallucinate or loop. Application-level bounds guarantee deterministic completion or safe handoff.
-* **Why use structured observations?** Observations (`AgentObservation`) make the planning loop state-aware, enabling informed follow-up decisions without repeating identical tool calls.
-* **Why dual-layer evaluation?** Deterministic state assertions verify tools, security, and lineage independently of LLM non-determinism.
-* **How are prompt injections neutralized?** Pre-retrieval metadata filtering drops injection documents before vector search, and Data-Instruction XML framing isolates untrusted content from system directives.
+* **Tools Used**: Google Antigravity / Gemini 3.6 Flash for paired agentic coding, architecture planning, and test suite generation.
+* **Specific Purposes**: Rapid boilerplate generation, evaluation case schema drafting, and test assertion scaffolding.
+* **Incorrect / Incomplete AI Suggestion Example**:
+  * *Suggestion*: Relying purely on ChromaDB cosine distance thresholds (`distance < 0.35`) to determine whether retrieved knowledge-base evidence is sufficient for grounded generation.
+  * *Why It Was Incorrect*: Vector embedding distance reflects proximity in vector space, not domain policy relevance. For out-of-domain queries (e.g. *"quantum computers"*), ChromaDB still returned nearest-neighbor vector chunks from unrelated warranty documents with low distance scores.
+  * *How Detected & Corrected*: Caught via unit test assertions expecting `RETRIEVAL_FAILURE` on out-of-domain queries. Corrected by replacing raw distance cutoffs with an explicit `evaluate_retrieval_sufficiency()` policy and `assess_evidence()` layer that inspects metadata eligibility, active status, document authority, and domain scope rather than relying on arbitrary vector distance cutoffs.
 
 ---
 
