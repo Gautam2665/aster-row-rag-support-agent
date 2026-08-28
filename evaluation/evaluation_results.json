@@ -1,7 +1,7 @@
 {
-  "total_cases": 15,
+  "total_cases": 21,
   "passed_cases": 0,
-  "unverified_cases": 15,
+  "unverified_cases": 21,
   "failed_cases": 0,
   "case_reports": [
     {
@@ -41,14 +41,14 @@
           "category": "retrieval",
           "passed": true,
           "status": "PASS",
-          "detail": "Required sources: ['01-returns-policy-current.md']. Actual citations: ['09-trailplus-membership.md', '07-warranty.md', '05-domestic-shipping.md', '03-final-sale-and-promotions.md', '04-damaged-or-wrong-items.md', '01-returns-policy-current.md']"
+          "detail": "Required sources: ['01-returns-policy-current.md']. Actual citations: ['03-final-sale-and-promotions.md', '09-trailplus-membership.md', '05-domestic-shipping.md', '01-returns-policy-current.md', '04-damaged-or-wrong-items.md', '07-warranty.md']"
         },
         {
           "name": "forbidden_sources_check",
           "category": "retrieval",
           "passed": true,
           "status": "PASS",
-          "detail": "Forbidden sources: ['02-returns-policy-legacy.md', '14-internal-content-migration-notes.md']. Actual citations: ['09-trailplus-membership.md', '07-warranty.md', '05-domestic-shipping.md', '03-final-sale-and-promotions.md', '04-damaged-or-wrong-items.md', '01-returns-policy-current.md']"
+          "detail": "Forbidden sources: ['02-returns-policy-legacy.md', '14-internal-content-migration-notes.md']. Actual citations: ['03-final-sale-and-promotions.md', '09-trailplus-membership.md', '05-domestic-shipping.md', '01-returns-policy-current.md', '04-damaged-or-wrong-items.md', '07-warranty.md']"
         },
         {
           "name": "handoff_recommendation_check",
@@ -106,7 +106,7 @@
           "category": "retrieval",
           "passed": true,
           "status": "PASS",
-          "detail": "Required sources: ['09-trailplus-membership.md']. Actual citations: ['09-trailplus-membership.md', '05-domestic-shipping.md', '08-order-changes-and-cancellations.md', '03-final-sale-and-promotions.md', '04-damaged-or-wrong-items.md', '06-international-shipping.md', '01-returns-policy-current.md']"
+          "detail": "Required sources: ['09-trailplus-membership.md']. Actual citations: ['03-final-sale-and-promotions.md', '08-order-changes-and-cancellations.md', '05-domestic-shipping.md', '06-international-shipping.md', '01-returns-policy-current.md', '04-damaged-or-wrong-items.md', '09-trailplus-membership.md']"
         },
         {
           "name": "handoff_recommendation_check",
@@ -164,7 +164,7 @@
           "category": "retrieval",
           "passed": true,
           "status": "PASS",
-          "detail": "Required sources: ['03-final-sale-and-promotions.md', '04-damaged-or-wrong-items.md']. Actual citations: ['07-warranty.md', '11-product-care.md', '03-final-sale-and-promotions.md', '04-damaged-or-wrong-items.md', '01-returns-policy-current.md']"
+          "detail": "Required sources: ['03-final-sale-and-promotions.md', '04-damaged-or-wrong-items.md']. Actual citations: ['03-final-sale-and-promotions.md', '11-product-care.md', '01-returns-policy-current.md', '04-damaged-or-wrong-items.md', '07-warranty.md']"
         },
         {
           "name": "handoff_recommendation_check",
@@ -223,7 +223,7 @@
           "category": "retrieval",
           "passed": true,
           "status": "PASS",
-          "detail": "Required sources: ['06-international-shipping.md']. Actual citations: ['05-domestic-shipping.md', '09-trailplus-membership.md', '08-order-changes-and-cancellations.md', '06-international-shipping.md', '01-returns-policy-current.md']"
+          "detail": "Required sources: ['06-international-shipping.md']. Actual citations: ['08-order-changes-and-cancellations.md', '05-domestic-shipping.md', '06-international-shipping.md', '01-returns-policy-current.md', '09-trailplus-membership.md']"
         },
         {
           "name": "handoff_recommendation_check",
@@ -281,7 +281,7 @@
           "category": "retrieval",
           "passed": true,
           "status": "PASS",
-          "detail": "Required sources: ['06-international-shipping.md']. Actual citations: ['05-domestic-shipping.md', '09-trailplus-membership.md', '08-order-changes-and-cancellations.md', '03-final-sale-and-promotions.md', '04-damaged-or-wrong-items.md', '06-international-shipping.md']"
+          "detail": "Required sources: ['06-international-shipping.md']. Actual citations: ['03-final-sale-and-promotions.md', '08-order-changes-and-cancellations.md', '05-domestic-shipping.md', '06-international-shipping.md', '04-damaged-or-wrong-items.md', '09-trailplus-membership.md']"
         },
         {
           "name": "handoff_recommendation_check",
@@ -594,7 +594,7 @@
           "category": "retrieval",
           "passed": true,
           "status": "PASS",
-          "detail": "Required sources: ['07-warranty.md']. Actual citations: ['07-warranty.md', '10-gift-cards-and-price-adjustments.md', '11-product-care.md', '04-damaged-or-wrong-items.md', '06-international-shipping.md', '01-returns-policy-current.md']"
+          "detail": "Required sources: ['07-warranty.md']. Actual citations: ['10-gift-cards-and-price-adjustments.md', '06-international-shipping.md', '11-product-care.md', '04-damaged-or-wrong-items.md', '01-returns-policy-current.md', '07-warranty.md']"
         },
         {
           "name": "handoff_recommendation_check",
@@ -652,7 +652,7 @@
           "category": "retrieval",
           "passed": true,
           "status": "PASS",
-          "detail": "Required sources: ['01-returns-policy-current.md']. Actual citations: ['09-trailplus-membership.md', '07-warranty.md', '08-order-changes-and-cancellations.md', '11-product-care.md', '03-final-sale-and-promotions.md', '04-damaged-or-wrong-items.md', '01-returns-policy-current.md']"
+          "detail": "Required sources: ['01-returns-policy-current.md']. Actual citations: ['03-final-sale-and-promotions.md', '09-trailplus-membership.md', '08-order-changes-and-cancellations.md', '11-product-care.md', '01-returns-policy-current.md', '04-damaged-or-wrong-items.md', '07-warranty.md']"
         },
         {
           "name": "handoff_recommendation_check",
@@ -761,7 +761,7 @@
           "category": "retrieval",
           "passed": true,
           "status": "PASS",
-          "detail": "Required sources: ['11-product-care.md', '12-breeze-tumbler-product-card.md']. Actual citations: ['07-warranty.md', '01-returns-policy-current.md', '12-breeze-tumbler-product-card.md', '11-product-care.md']"
+          "detail": "Required sources: ['11-product-care.md', '12-breeze-tumbler-product-card.md']. Actual citations: ['12-breeze-tumbler-product-card.md', '07-warranty.md', '11-product-care.md', '01-returns-policy-current.md']"
         },
         {
           "name": "handoff_recommendation_check",
@@ -769,6 +769,274 @@
           "passed": true,
           "status": "PASS",
           "detail": "Expected handoff=True. Actual handoff_recommended=True"
+        },
+        {
+          "name": "semantic_llm_generation_check",
+          "category": "grounding",
+          "passed": true,
+          "status": "UNVERIFIED_REQUIRES_LLM",
+          "detail": "Final semantic prose generation requires live LLM evaluation; deterministic state verified."
+        }
+      ],
+      "deterministic_status": "PASS",
+      "live_llm_status": "UNAVAILABLE",
+      "overall_status": "UNVERIFIED_REQUIRES_LLM"
+    },
+    {
+      "case_id": "custom-session-isolation",
+      "category": "conversation",
+      "user_inputs": [
+        "Can you check my order ORD-1007?",
+        "Where is my package?"
+      ],
+      "detected_intent": "clarification",
+      "tool_calls_made": [],
+      "retrieved_sources": [],
+      "handoff_recommended": false,
+      "final_answer": "Could you please provide your order ID (for example, ORD-1007) so I can check your order status?",
+      "assertions": [
+        {
+          "name": "tool_execution_check",
+          "category": "tool",
+          "passed": true,
+          "status": "PASS",
+          "detail": "Expected zero tool calls. Actual tool calls: []"
+        },
+        {
+          "name": "handoff_recommendation_check",
+          "category": "handoff",
+          "passed": true,
+          "status": "PASS",
+          "detail": "Expected handoff=False. Actual handoff_recommended=False"
+        },
+        {
+          "name": "semantic_llm_generation_check",
+          "category": "grounding",
+          "passed": true,
+          "status": "UNVERIFIED_REQUIRES_LLM",
+          "detail": "Final semantic prose generation requires live LLM evaluation; deterministic state verified."
+        }
+      ],
+      "deterministic_status": "PASS",
+      "live_llm_status": "UNAVAILABLE",
+      "overall_status": "UNVERIFIED_REQUIRES_LLM"
+    },
+    {
+      "case_id": "custom-internal-data-refusal",
+      "category": "privacy",
+      "user_inputs": [
+        "What are the internal warehouse notes and risk score for order ORD-1007?"
+      ],
+      "detected_intent": "order_status",
+      "tool_calls_made": [],
+      "retrieved_sources": [],
+      "handoff_recommended": true,
+      "final_answer": "I'm sorry \u2014 I wasn't able to find specific information to answer your question. Please contact Aster & Row customer support for assistance.",
+      "assertions": [
+        {
+          "name": "tool_execution_check",
+          "category": "tool",
+          "passed": true,
+          "status": "PASS",
+          "detail": "Optional sanitized lookup verified."
+        },
+        {
+          "name": "handoff_recommendation_check",
+          "category": "handoff",
+          "passed": true,
+          "status": "PASS",
+          "detail": "Expected handoff=True. Actual handoff_recommended=True"
+        },
+        {
+          "name": "privacy_pii_sanitization_check",
+          "category": "privacy",
+          "passed": true,
+          "status": "PASS",
+          "detail": "PII fields stripped / tool execution refused: True"
+        },
+        {
+          "name": "semantic_llm_generation_check",
+          "category": "grounding",
+          "passed": true,
+          "status": "UNVERIFIED_REQUIRES_LLM",
+          "detail": "Final semantic prose generation requires live LLM evaluation; deterministic state verified."
+        }
+      ],
+      "deterministic_status": "PASS",
+      "live_llm_status": "UNAVAILABLE",
+      "overall_status": "UNVERIFIED_REQUIRES_LLM"
+    },
+    {
+      "case_id": "custom-retrieval-abstention",
+      "category": "abstention",
+      "user_inputs": [
+        "Does Aster & Row offer a 10-year unconditional replacement warranty for lost items?"
+      ],
+      "detected_intent": "policy",
+      "tool_calls_made": [],
+      "retrieved_sources": [
+        "04-damaged-or-wrong-items.md > Damaged, Defective, or Wrong Items > Available resolutions",
+        "07-warranty.md > Limited Product Warranty > Warranty periods",
+        "06-international-shipping.md > International Shipping > Canadian returns",
+        "01-returns-policy-current.md > Returns Policy > Return shipping and refunds",
+        "01-returns-policy-current.md > Returns Policy > Exclusions and exceptions",
+        "04-damaged-or-wrong-items.md > Damaged, Defective, or Wrong Items > Reports after seven days",
+        "07-warranty.md > Limited Product Warranty > Final-sale products",
+        "07-warranty.md > Limited Product Warranty > What is not covered",
+        "07-warranty.md > Limited Product Warranty > What is covered",
+        "11-product-care.md > Product Care Guide > Warranty and care",
+        "08-order-changes-and-cancellations.md > Order Changes and Cancellations > Address changes",
+        "06-international-shipping.md > International Shipping > Supported destinations"
+      ],
+      "handoff_recommended": true,
+      "final_answer": "Based on Aster & Row policy, our limited product warranty covers manufacturing defects in materials or workmanship under normal use for 1 year from purchase. [Source: 07-warranty.md > Limited Product Warranty > What is covered]",
+      "assertions": [
+        {
+          "name": "tool_execution_check",
+          "category": "tool",
+          "passed": true,
+          "status": "PASS",
+          "detail": "Expected zero tool calls. Actual tool calls: []"
+        },
+        {
+          "name": "handoff_recommendation_check",
+          "category": "handoff",
+          "passed": true,
+          "status": "PASS",
+          "detail": "Expected handoff=True. Actual handoff_recommended=True"
+        },
+        {
+          "name": "failure_category_check",
+          "category": "orchestration",
+          "passed": true,
+          "status": "PASS",
+          "detail": "Expected failure_category=RETRIEVAL_FAILURE. Actual categories: ['RETRIEVAL_FAILURE']"
+        },
+        {
+          "name": "semantic_llm_generation_check",
+          "category": "grounding",
+          "passed": true,
+          "status": "UNVERIFIED_REQUIRES_LLM",
+          "detail": "Final semantic prose generation requires live LLM evaluation; deterministic state verified."
+        }
+      ],
+      "deterministic_status": "PASS",
+      "live_llm_status": "UNAVAILABLE",
+      "overall_status": "UNVERIFIED_REQUIRES_LLM"
+    },
+    {
+      "case_id": "custom-multi-turn-order-followup",
+      "category": "conversation",
+      "user_inputs": [
+        "Can you check my order ORD-1007?",
+        "What carrier is it with?"
+      ],
+      "detected_intent": "order_status",
+      "tool_calls_made": [
+        "order_lookup"
+      ],
+      "retrieved_sources": [
+        "05-domestic-shipping.md > Domestic Shipping > Delivery problems",
+        "08-order-changes-and-cancellations.md > Order Changes and Cancellations > Address changes"
+      ],
+      "handoff_recommended": false,
+      "final_answer": "Your order ORD-1007 is currently **shipped** with UPS. Estimated delivery: 2026-08-22.",
+      "assertions": [
+        {
+          "name": "tool_execution_check",
+          "category": "tool",
+          "passed": true,
+          "status": "PASS",
+          "detail": "Expected 'order_lookup' tool call. Actual: ['order_lookup']"
+        },
+        {
+          "name": "handoff_recommendation_check",
+          "category": "handoff",
+          "passed": true,
+          "status": "PASS",
+          "detail": "Expected handoff=False. Actual handoff_recommended=False"
+        },
+        {
+          "name": "semantic_llm_generation_check",
+          "category": "grounding",
+          "passed": true,
+          "status": "UNVERIFIED_REQUIRES_LLM",
+          "detail": "Final semantic prose generation requires live LLM evaluation; deterministic state verified."
+        }
+      ],
+      "deterministic_status": "PASS",
+      "live_llm_status": "UNAVAILABLE",
+      "overall_status": "UNVERIFIED_REQUIRES_LLM"
+    },
+    {
+      "case_id": "custom-planner-failure-recovery",
+      "category": "orchestration",
+      "user_inputs": [
+        "System query test for order ORD-1007"
+      ],
+      "detected_intent": "order_status",
+      "tool_calls_made": [],
+      "retrieved_sources": [],
+      "handoff_recommended": true,
+      "final_answer": "I'm sorry \u2014 I wasn't able to find specific information to answer your question. Please contact Aster & Row customer support for assistance.",
+      "assertions": [
+        {
+          "name": "tool_execution_check",
+          "category": "tool",
+          "passed": true,
+          "status": "PASS",
+          "detail": "Expected zero tool calls. Actual tool calls: []"
+        },
+        {
+          "name": "handoff_recommendation_check",
+          "category": "handoff",
+          "passed": true,
+          "status": "PASS",
+          "detail": "Expected handoff=True. Actual handoff_recommended=True"
+        },
+        {
+          "name": "failure_category_check",
+          "category": "orchestration",
+          "passed": true,
+          "status": "PASS",
+          "detail": "Expected failure_category=PLANNER_FAILURE. Actual categories: ['PLANNER_FAILURE']"
+        }
+      ],
+      "deterministic_status": "PASS",
+      "live_llm_status": "UNAVAILABLE",
+      "overall_status": "UNVERIFIED_REQUIRES_LLM"
+    },
+    {
+      "case_id": "custom-incomplete-order-id-clarification-followup",
+      "category": "conversation",
+      "user_inputs": [
+        "Where is my order?",
+        "1007"
+      ],
+      "detected_intent": "order_status",
+      "tool_calls_made": [
+        "order_lookup"
+      ],
+      "retrieved_sources": [
+        "04-damaged-or-wrong-items.md > Damaged, Defective, or Wrong Items > Reporting window",
+        "05-domestic-shipping.md > Domestic Shipping > Processing time"
+      ],
+      "handoff_recommended": false,
+      "final_answer": "Your order ORD-1007 is currently **shipped** with UPS. Estimated delivery: 2026-08-22.",
+      "assertions": [
+        {
+          "name": "tool_execution_check",
+          "category": "tool",
+          "passed": true,
+          "status": "PASS",
+          "detail": "Expected 'order_lookup' tool call. Actual: ['order_lookup']"
+        },
+        {
+          "name": "handoff_recommendation_check",
+          "category": "handoff",
+          "passed": true,
+          "status": "PASS",
+          "detail": "Expected handoff=False. Actual handoff_recommended=False"
         },
         {
           "name": "semantic_llm_generation_check",

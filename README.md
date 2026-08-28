@@ -296,6 +296,7 @@ python -c "from pathlib import Path; from src.evaluation import EvaluationRunner
 
 ## 14. Demo Video
 
-![Aster & Row Support Agent Demo](demo.gif)
-*(Replace `demo.gif` with your recorded video or GIF file in the repository root)*
+<video src="demo.mp4" controls width="100%"></video>
+
+*(If video preview does not play automatically in your browser, [click here to view demo.mp4](demo.mp4))*
 
