@@ -114,13 +114,15 @@ ai-agent-intern-test/
 │   ├── llm.py                      # BaseLLMProvider, MockLLMProvider, OpenAILLMProvider
 │   └── tools/
 │       └── order_lookup.py         # OrderLookupTool security firewall & CustomerSafeOrderResult
-├── tests/                    # 225 Unit Tests Across 30 Test Suites (100% Passing)
+├── tests/                    # 226 Unit Tests Across 30 Test Suites (100% Passing)
 ├── evaluation/
 │   ├── visible-cases.json    # 15 candidate visible evaluation cases
-│   ├── custom-cases.json     # 5 original custom evaluation cases
-│   └── evaluation_results.json # Generated evaluation execution reports
-├── experiments/              # Educational RAG & LLM experiment scripts
-└── docs/                     # 35 Comprehensive Study & Architecture Curriculum Modules
+│   ├── custom-cases.json     # 6 custom evaluation cases
+│   └── evaluation_results.json # Generated 21-case evaluation execution report
+├── knowledge-base/           # 14 Markdown policy & product documents
+├── data/                     # orders.json & data dictionary
+├── .env.example              # Environment configuration template
+└── README.md                 # Technical design & evaluation documentation
 ```
 
 ---
@@ -186,7 +188,7 @@ Run the complete test suite using `pytest`:
 ```bash
 pytest
 ```
-* **Current Verified Test Count**: **225 / 225 Passed** across 30 test files (in ~14s).
+* **Current Verified Test Count**: **226 / 226 Passed** across 30 test files (in ~14s).
 
 ---
 
@@ -288,19 +290,7 @@ python -c "from pathlib import Path; from src.evaluation import EvaluationRunner
 
 ---
 
-## 14. AI Tools Used
-
-* **Tools Used**: Google Antigravity / Gemini 3.6 Flash for paired agentic coding, architecture planning, and test suite generation.
-* **Example of Incorrect Suggestion**:
-  * *Suggestion*: Relying purely on ChromaDB cosine distance thresholds (`distance < 0.35`) to determine whether retrieved knowledge-base evidence is sufficient.
-  * *Why It Was Wrong*: Vector embedding distance reflects proximity in vector space, not domain policy relevance. For out-of-domain queries (e.g. *"quantum computers"*), ChromaDB still returned nearest-neighbor vector chunks from unrelated warranty documents with low distance scores.
-* **How It Was Caught & Corrected**:
-  * Caught via unit test assertions expecting `RETRIEVAL_FAILURE` on out-of-domain queries.
-  * Corrected by introducing an explicit `evaluate_retrieval_sufficiency()` policy and `assess_evidence()` layer that inspects metadata eligibility, active status, document authority, and domain scope rather than relying on arbitrary vector distance cutoffs.
-
----
-
-## 15. Demo Video
+## 14. Demo Video
 
 ![Aster & Row Support Agent Demo](demo.gif)
 *(Replace `demo.gif` with your recorded video or GIF file in the repository root)*
